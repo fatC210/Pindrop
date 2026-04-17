@@ -1,0 +1,68 @@
+/* Map controls styling */
+.map-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+}
+
+.map-control-button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: white;
+  color: #1A1A1A;
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.map-control-button:hover:not(:disabled) {
+  background: #F5F5F5;
+}
+
+.map-control-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zoom-level {
+  font-size: 14px;
+  font-weight: 500;
+  color: #666666;
+  text-align: center;
+  padding: 4px 0;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+  .map-controls {
+    background: #2A2A2A;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .map-control-button {
+    background: #2A2A2A;
+    color: #FFFFFF;
+  }
+
+  .map-control-button:hover:not(:disabled) {
+    background: #404040;
+  }
+
+  .zoom-level {
+    color: #A0A0A0;
+  }
+}

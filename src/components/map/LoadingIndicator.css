@@ -1,0 +1,47 @@
+/* Loading indicator ripple animation */
+.loading-indicator {
+  background: transparent;
+  border: none;
+}
+
+.loading-indicator-container {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.loading-circle {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 2px solid #3B82F6;
+  border-radius: 50%;
+  animation: ripple 1.5s ease-out infinite;
+  opacity: 0;
+}
+
+.loading-circle:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.loading-circle:nth-child(3) {
+  animation-delay: 1s;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+  .loading-circle {
+    border-color: #60A5FA;
+  }
+}
