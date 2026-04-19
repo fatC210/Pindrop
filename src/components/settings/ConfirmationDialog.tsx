@@ -3,6 +3,8 @@
 // 确认对话框组件
 // Requirements: 9.2
 import React, { useCallback, useEffect, useRef } from 'react';
+
+import { useI18n } from '@/i18n/I18nProvider';
 import './ConfirmationDialog.css';
 
 export interface ConfirmationDialogProps {
@@ -19,6 +21,7 @@ export function ConfirmationDialog({
   onConfirm,
   onCancel,
 }: ConfirmationDialogProps): React.JSX.Element {
+  const { messages } = useI18n();
   const dialogRef = useRef<HTMLDivElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
@@ -106,7 +109,7 @@ export function ConfirmationDialog({
             className="confirmation-dialog__button confirmation-dialog__button--cancel"
             onClick={onCancel}
           >
-            Cancel
+            {messages.common.cancel}
           </button>
           <button
             ref={confirmButtonRef}
@@ -114,7 +117,7 @@ export function ConfirmationDialog({
             className="confirmation-dialog__button confirmation-dialog__button--confirm"
             onClick={onConfirm}
           >
-            Confirm
+            {messages.common.confirm}
           </button>
         </div>
       </div>

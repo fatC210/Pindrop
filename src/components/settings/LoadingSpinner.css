@@ -50,10 +50,3 @@
   border-width: 0;
 }
 
-/* 暗色主题支持 */
-@media (prefers-color-scheme: dark) {
-  .loading-spinner {
-    border-color: var(--border, #404040);
-    border-top-color: var(--accent, #60A5FA);
-  }
-}

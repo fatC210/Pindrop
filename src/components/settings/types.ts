@@ -1,6 +1,8 @@
 // Type definitions for the Settings UI module
 // Requirements: 11.2, 11.5
 
+import type { AppLocale } from '@/i18n/types';
+
 // ---------------------------------------------------------------------------
 // Primitive / union types
 // ---------------------------------------------------------------------------
@@ -8,11 +10,11 @@
 /** Valid fade-in duration options in seconds */
 export type FadeInDuration = 0.5 | 1.0 | 1.5 | 2.0 | 3.0;
 
-/** Map visual theme */
+/** Legacy visual theme preference kept for storage compatibility. */
 export type MapTheme = 'light' | 'dark';
 
 /** Navigable sections within the settings panel */
-export type SettingsSection = 'api-key' | 'map' | 'playback' | 'cache' | 'about';
+export type SettingsSection = 'language' | 'api-key' | 'playback' | 'cache' | 'about';
 
 // ---------------------------------------------------------------------------
 // Data-model interfaces
@@ -32,6 +34,7 @@ export interface LayerVolumes {
  * Persisted as a single JSON object under `pindrop_preferences` in localStorage.
  */
 export interface UserPreferences {
+  interfaceLanguage: AppLocale;
   mapStyle: MapTheme;
   autoPlay: boolean;
   fadeInDuration: FadeInDuration;
@@ -58,21 +61,27 @@ export interface ApiKeyState {
   value: string;
   masked: string;
   isValid: boolean | null;
-  error: string | null;
+  error: ApiKeyErrorCode | null;
   isVerifying: boolean;
 }
 
 /** Result of synchronous format validation */
 export interface ValidationResult {
   isValid: boolean;
-  error?: string;
+  error?: ApiKeyValidationErrorCode;
 }
 
 /** Result of asynchronous API key verification against ElevenLabs */
 export interface VerificationResult {
   isValid: boolean;
-  error?: string;
+  error?: ApiKeyVerificationErrorCode;
 }
+
+export type ApiKeyValidationErrorCode = 'INVALID_FORMAT';
+
+export type ApiKeyVerificationErrorCode = 'INVALID_OR_EXPIRED' | 'CONNECTION_FAILED';
+
+export type ApiKeyErrorCode = ApiKeyValidationErrorCode | ApiKeyVerificationErrorCode;
 
 // ---------------------------------------------------------------------------
 // Cache types
@@ -171,6 +180,4 @@ export interface SettingsAction {
 export interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  onThemeChange: (theme: MapTheme) => void;
-  currentTheme: MapTheme;
 }

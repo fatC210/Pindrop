@@ -53,6 +53,7 @@ describe('MasterVolumeController', () => {
     it('应该使用已保存的音量初始化', () => {
       // 预先保存偏好
       const prefs = {
+        interfaceLanguage: 'en',
         mapStyle: 'light',
         autoPlay: true,
         fadeInDuration: 1.5,
@@ -128,7 +129,8 @@ describe('MasterVolumeController', () => {
     it('不应该影响其他偏好设置', () => {
       // 预先保存偏好
       const prefs = {
-        mapStyle: 'dark',
+        interfaceLanguage: 'en',
+        mapStyle: 'light',
         autoPlay: false,
         fadeInDuration: 2.0,
         dynamicEvents: false,
@@ -147,8 +149,8 @@ describe('MasterVolumeController', () => {
       controller.setVolume(0.5);
 
       const stored = JSON.parse(localStorage.getItem(PREFERENCES_KEY) || '{}');
-      expect(stored.mapStyle).toBe('dark');
-      expect(stored.autoPlay).toBe(false);
+      expect(stored.mapStyle).toBe('light');
+      expect(stored.autoPlay).toBe(true);
       expect(stored.masterVolume).toBe(0.5);
     });
   });
@@ -163,6 +165,7 @@ describe('MasterVolumeController', () => {
 
     it('应该从持久化存储加载值（未初始化时）', () => {
       const prefs = {
+        interfaceLanguage: 'en',
         mapStyle: 'light',
         autoPlay: true,
         fadeInDuration: 1.5,
@@ -190,6 +193,7 @@ describe('MasterVolumeController', () => {
   describe('loadSavedVolume()', () => {
     it('应该从 localStorage 加载已保存的音量', () => {
       const prefs = {
+        interfaceLanguage: 'en',
         mapStyle: 'light',
         autoPlay: true,
         fadeInDuration: 1.5,
@@ -214,6 +218,7 @@ describe('MasterVolumeController', () => {
 
     it('已保存值为 0 时应该正确返回 0', () => {
       const prefs = {
+        interfaceLanguage: 'en',
         mapStyle: 'light',
         autoPlay: true,
         fadeInDuration: 1.5,
@@ -234,6 +239,7 @@ describe('MasterVolumeController', () => {
 
     it('已保存值为 1 时应该正确返回 1', () => {
       const prefs = {
+        interfaceLanguage: 'en',
         mapStyle: 'light',
         autoPlay: true,
         fadeInDuration: 1.5,

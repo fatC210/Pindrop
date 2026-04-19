@@ -74,8 +74,8 @@ describe('GeocodingEngine Unit Tests', () => {
       vi.spyOn(nominatimModule, 'reverseGeocode').mockResolvedValue(
         mockResponse
       );
-      vi.spyOn(geocodeCacheModule, 'getCachedGeocode').mockResolvedValue(null);
-      vi.spyOn(geocodeCacheModule, 'cacheGeocode').mockResolvedValue();
+      vi.spyOn(geocodeCacheModule, 'getCachedLocationContext').mockResolvedValue(null);
+      vi.spyOn(geocodeCacheModule, 'cacheLocationContext').mockResolvedValue();
 
       const context = await resolveLocation(48.86, 2.35);
 
@@ -99,22 +99,22 @@ describe('GeocodingEngine Unit Tests', () => {
       vi.spyOn(nominatimModule, 'reverseGeocode').mockResolvedValue(
         mockResponse
       );
-      vi.spyOn(geocodeCacheModule, 'getCachedGeocode').mockResolvedValue(null);
-      const cacheGeocodeSpy = vi
-        .spyOn(geocodeCacheModule, 'cacheGeocode')
+      vi.spyOn(geocodeCacheModule, 'getCachedLocationContext').mockResolvedValue(null);
+      const cacheLocationContextSpy = vi
+        .spyOn(geocodeCacheModule, 'cacheLocationContext')
         .mockResolvedValue();
 
       await resolveLocation(35.68, 139.65);
 
-      expect(cacheGeocodeSpy).toHaveBeenCalled();
+      expect(cacheLocationContextSpy).toHaveBeenCalled();
     });
   });
 
   describe('Nominatim 失败路径', () => {
     it('Nominatim 超时时应降级到坐标推断', async () => {
       vi.spyOn(nominatimModule, 'reverseGeocode').mockResolvedValue(null);
-      vi.spyOn(geocodeCacheModule, 'getCachedGeocode').mockResolvedValue(null);
-      vi.spyOn(geocodeCacheModule, 'cacheGeocode').mockResolvedValue();
+      vi.spyOn(geocodeCacheModule, 'getCachedLocationContext').mockResolvedValue(null);
+      vi.spyOn(geocodeCacheModule, 'cacheLocationContext').mockResolvedValue();
 
       const context = await resolveLocation(0, -30);
 
@@ -125,8 +125,8 @@ describe('GeocodingEngine Unit Tests', () => {
 
     it('Nominatim 无结果时应降级到坐标推断', async () => {
       vi.spyOn(nominatimModule, 'reverseGeocode').mockResolvedValue(null);
-      vi.spyOn(geocodeCacheModule, 'getCachedGeocode').mockResolvedValue(null);
-      vi.spyOn(geocodeCacheModule, 'cacheGeocode').mockResolvedValue();
+      vi.spyOn(geocodeCacheModule, 'getCachedLocationContext').mockResolvedValue(null);
+      vi.spyOn(geocodeCacheModule, 'cacheLocationContext').mockResolvedValue();
 
       const context = await resolveLocation(85, 0);
 
@@ -137,14 +137,14 @@ describe('GeocodingEngine Unit Tests', () => {
 
     it('Nominatim 失败时应缓存推断结果', async () => {
       vi.spyOn(nominatimModule, 'reverseGeocode').mockResolvedValue(null);
-      vi.spyOn(geocodeCacheModule, 'getCachedGeocode').mockResolvedValue(null);
-      const cacheGeocodeSpy = vi
-        .spyOn(geocodeCacheModule, 'cacheGeocode')
+      vi.spyOn(geocodeCacheModule, 'getCachedLocationContext').mockResolvedValue(null);
+      const cacheLocationContextSpy = vi
+        .spyOn(geocodeCacheModule, 'cacheLocationContext')
         .mockResolvedValue();
 
       await resolveLocation(0, -30);
 
-      expect(cacheGeocodeSpy).toHaveBeenCalled();
+      expect(cacheLocationContextSpy).toHaveBeenCalled();
     });
   });
 
@@ -222,8 +222,8 @@ describe('GeocodingEngine Unit Tests', () => {
       vi.spyOn(nominatimModule, 'reverseGeocode').mockResolvedValue(
         mockResponse
       );
-      vi.spyOn(geocodeCacheModule, 'getCachedGeocode').mockResolvedValue(null);
-      vi.spyOn(geocodeCacheModule, 'cacheGeocode').mockResolvedValue();
+      vi.spyOn(geocodeCacheModule, 'getCachedLocationContext').mockResolvedValue(null);
+      vi.spyOn(geocodeCacheModule, 'cacheLocationContext').mockResolvedValue();
 
       const context = await resolveLocation(48.86, 2.35);
 
@@ -241,7 +241,7 @@ describe('GeocodingEngine Unit Tests', () => {
       // 时间
       expect(context.timezone).toBe('Europe/Paris');
       expect(context.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(context.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(context.currentLocalHour).toBeLessThan(24);
       expect(['dawn', 'day', 'dusk', 'night']).toContain(context.timeSlot);
 
       // 文化推断

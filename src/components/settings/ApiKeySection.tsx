@@ -1,26 +1,32 @@
 'use client';
 
 // API Key 管理区域组件
-// 处理 API key 输入、格式验证、掩码显示和远程验证
+// 处理 API key 输入、失焦保存、显示/隐藏和远程验证
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 3.1, 3.3, 3.6
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
-import type { VerificationResult } from './types';
-import { validateApiKeyFormat, maskApiKey } from './apiKeyUtils';
-import { storeApiKey } from './preferencesStore';
+import { useI18n } from '@/i18n/I18nProvider';
+import type { ApiKeyErrorCode, VerificationResult } from './types';
+import { validateApiKeyFormat, normalizeApiKey } from './apiKeyUtils';
+import { clearApiKey, storeApiKey } from './preferencesStore';
 import { LoadingSpinner } from './LoadingSpinner';
 import './ApiKeySection.css';
 
 export interface ApiKeySectionProps {
   apiKey: string;
   onApiKeyChange: (apiKey: string) => void;
-  onVerify: () => Promise<void>;
+  onVerify: (apiKey: string) => Promise<void>;
   isVerifying: boolean;
   verificationResult: VerificationResult | null;
-  error: string | null;
+  error: ApiKeyErrorCode | null;
 }
 
-/** API Key 管理区域：输入、验证、掩码显示和远程验证 */
+interface PendingApiKeyCommit {
+  previousApiKey: string;
+  nextApiKey: string;
+}
+
+/** API Key 管理区域：输入、显示/隐藏和远程验证 */
 export function ApiKeySection({
   apiKey,
   onApiKeyChange,
@@ -29,170 +35,237 @@ export function ApiKeySection({
   verificationResult,
   error,
 }: ApiKeySectionProps): React.JSX.Element {
-  const [isEditingOverride, setIsEditingOverride] = useState<boolean | null>(null);
-  const [inputValue, setInputValue] = useState<string>('');
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const isEditing = isEditingOverride ?? !apiKey;
+  const { messages } = useI18n();
+  const [draftValue, setDraftValue] = useState<string | null>(null);
+  const [pendingCommit, setPendingCommit] = useState<PendingApiKeyCommit | null>(null);
+  const [validationError, setValidationError] = useState<ApiKeyErrorCode | null>(null);
+  const [isApiKeyVisible, setIsApiKeyVisible] = useState<boolean>(false);
 
-  // 清理防抖定时器
+  const hasLocalChanges = draftValue !== null;
+  const pendingInputValue =
+    pendingCommit != null && apiKey === pendingCommit.previousApiKey
+      ? pendingCommit.nextApiKey
+      : null;
+  const inputValue = draftValue ?? pendingInputValue ?? apiKey;
+  const hasInputValue = normalizeApiKey(inputValue).length > 0;
+
   useEffect(() => {
-    return (): void => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
+    if (!hasInputValue) {
+      setIsApiKeyVisible(false);
+    }
+  }, [hasInputValue]);
 
-  // 处理输入变化，带 500ms 防抖验证
+  // 处理输入变化，只更新草稿值并隐藏旧的错误/验证结果
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>): void => {
-      const value = event.target.value;
-      setInputValue(value);
+      setDraftValue(event.target.value);
+      setPendingCommit(null);
+      setValidationError(null);
+    },
+    [],
+  );
 
-      // 清除之前的防抖定时器
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+  const handleVisibilityToggle = useCallback((): void => {
+    setIsApiKeyVisible((current) => !current);
+  }, []);
 
-      // 空值时清除错误
-      if (!value) {
+  const commitInputValue = useCallback(
+    (rawValue: string): void => {
+      const normalizedValue = normalizeApiKey(rawValue);
+
+      if (!normalizedValue) {
+        clearApiKey();
+        onApiKeyChange('');
+        setDraftValue(null);
+        setPendingCommit({
+          previousApiKey: apiKey,
+          nextApiKey: '',
+        });
         setValidationError(null);
         return;
       }
 
-      // 500ms 防抖验证
-      debounceTimerRef.current = setTimeout(() => {
-        const result = validateApiKeyFormat(value);
-        if (result.isValid) {
-          setValidationError(null);
-          // 格式有效时保存到 localStorage
-          storeApiKey(value);
-          onApiKeyChange(value);
-        } else {
-          setValidationError(result.error ?? 'Invalid API Key format');
-        }
-      }, 500);
+      const validationResult = validateApiKeyFormat(normalizedValue);
+      if (!validationResult.isValid) {
+        setValidationError(validationResult.error ?? 'INVALID_FORMAT');
+        return;
+      }
+
+      if (normalizedValue === apiKey) {
+        setDraftValue(null);
+        setPendingCommit(null);
+        setValidationError(null);
+        return;
+      }
+
+      storeApiKey(normalizedValue);
+      onApiKeyChange(normalizedValue);
+      setDraftValue(null);
+      setPendingCommit({
+        previousApiKey: apiKey,
+        nextApiKey: normalizedValue,
+      });
+      setValidationError(null);
+      void onVerify(normalizedValue);
     },
-    [onApiKeyChange],
+    [apiKey, onApiKeyChange, onVerify],
   );
 
-  // 切换编辑模式
-  const handleEditClick = useCallback((): void => {
-    if (isEditing) {
-      // 退出编辑模式
-      setIsEditingOverride(null);
-      setInputValue('');
-      setValidationError(null);
-    } else {
-      // 进入编辑模式
-      setIsEditingOverride(true);
-      setInputValue(apiKey);
-      // 聚焦输入框
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  }, [isEditing, apiKey]);
+  // 失焦时自动保存并触发远程验证
+  const handleInputBlur = useCallback(
+    (event: React.FocusEvent<HTMLInputElement>): void => {
+      commitInputValue(event.currentTarget.value);
+    },
+    [commitInputValue],
+  );
 
-  // 处理验证按钮点击
-  const handleVerifyClick = useCallback((): void => {
-    void onVerify();
-  }, [onVerify]);
-
-  // 判断当前输入格式是否有效（用于禁用验证按钮）
-  const isFormatValid = apiKey ? validateApiKeyFormat(apiKey).isValid : false;
-  const displayError = validationError ?? error;
-  const hasInput = isEditing ? inputValue.length > 0 : apiKey.length > 0;
-
-  // 缓存掩码结果，避免每次渲染重新计算
-  const maskedApiKey = useMemo(() => maskApiKey(apiKey), [apiKey]);
+  const displayError = validationError ?? (hasLocalChanges ? null : error);
+  const displayErrorMessage = displayError ? messages.apiKeyErrors[displayError] : null;
+  const showVerifyingState = isVerifying && !hasLocalChanges;
+  const visibleVerificationResult = !displayError && !hasLocalChanges ? verificationResult : null;
 
   return (
     <section className="api-key-section" aria-labelledby="api-key-section-header">
       <h3 id="api-key-section-header" className="api-key-section__header">
-        API Key
+        {messages.settings.sections.apiKey.header}
       </h3>
 
-      <div className="api-key-section__input-row">
-        {isEditing ? (
-          <div className="api-key-section__input-wrapper">
-            <input
-              ref={inputRef}
-              type="password"
-              className={`api-key-section__input${validationError ? ' api-key-section__input--invalid' : ''}`}
-              value={inputValue}
-              onChange={handleInputChange}
-              placeholder="xi-..."
-              aria-label="ElevenLabs API Key"
-              aria-invalid={!!validationError}
-              aria-describedby={validationError ? 'api-key-error' : undefined}
-              autoComplete="off"
-            />
-          </div>
-        ) : (
-          <div className="api-key-section__masked" aria-label="Masked API Key">
-            {apiKey ? maskedApiKey : 'No API key set'}
-          </div>
-        )}
-
-        <button
-          type="button"
-          className="api-key-section__edit-button"
-          onClick={handleEditClick}
-          aria-label={isEditing ? 'Cancel editing' : 'Edit API key'}
-        >
-          {isEditing ? 'Cancel' : 'Edit'}
-        </button>
-      </div>
-
-      {/* 验证按钮和状态 */}
-      {hasInput && (
-        <div className="api-key-section__actions">
+      <div className="api-key-section__input-wrapper">
+        <input
+          type={hasInputValue && isApiKeyVisible ? 'text' : 'password'}
+          className={`api-key-section__input${validationError ? ' api-key-section__input--invalid' : ''}`}
+          value={inputValue}
+          onChange={handleInputChange}
+          onBlur={handleInputBlur}
+          placeholder="sk-..."
+          aria-label={messages.settings.sections.apiKey.inputAria}
+          aria-invalid={!!displayErrorMessage}
+          aria-describedby={displayErrorMessage ? 'api-key-error' : undefined}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        {hasInputValue && (
           <button
             type="button"
-            className="api-key-section__verify-button"
-            onClick={handleVerifyClick}
-            disabled={!isFormatValid || isVerifying}
-            aria-label="Verify API key"
+            className="api-key-section__visibility-button"
+            onMouseDown={(event) => {
+              event.preventDefault();
+            }}
+            onClick={handleVisibilityToggle}
+            aria-pressed={isApiKeyVisible}
+            aria-label={
+              isApiKeyVisible
+                ? messages.settings.sections.apiKey.hide
+                : messages.settings.sections.apiKey.show
+            }
+            title={
+              isApiKeyVisible
+                ? messages.settings.sections.apiKey.hide
+                : messages.settings.sections.apiKey.show
+            }
           >
-            {isVerifying ? (
-              <>
-                <LoadingSpinner size="small" />
-                Verifying...
-              </>
+            {isApiKeyVisible ? (
+              <svg
+                className="api-key-section__visibility-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  d="M10.73 5.08A11.2 11.2 0 0 1 12 5c5.23 0 8.94 3.06 10 6.39c.11.39.11.82 0 1.21a10.77 10.77 0 0 1-4.33 5.28"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.75"
+                />
+                <path
+                  d="M6.61 6.61A10.76 10.76 0 0 0 2 12.4c-.11.39-.11.82 0 1.21C3.06 16.94 6.77 20 12 20a11.2 11.2 0 0 0 5.39-1.3"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.75"
+                />
+                <path
+                  d="M9.88 9.88a3 3 0 1 0 4.24 4.24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.75"
+                />
+                <path
+                  d="M3 3l18 18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.75"
+                />
+              </svg>
             ) : (
-              'Verify Key'
+              <svg
+                className="api-key-section__visibility-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  d="M2 12s3.64-7 10-7s10 7 10 7s-3.64 7-10 7S2 12 2 12Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.75"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                />
+              </svg>
             )}
           </button>
+        )}
+      </div>
+
+      {showVerifyingState && (
+        <div className="api-key-section__status" role="status" aria-live="polite">
+          <LoadingSpinner size="small" />
+          <span>{messages.settings.sections.apiKey.verifying}</span>
         </div>
       )}
 
       {/* 格式验证错误 */}
-      {displayError && (
+      {displayErrorMessage && (
         <div
           id="api-key-error"
           className="api-key-section__error"
           role="alert"
         >
           <span className="api-key-section__error-icon" aria-hidden="true">⚠️</span>
-          <span>{displayError}</span>
+          <span>{displayErrorMessage}</span>
         </div>
       )}
 
       {/* 远程验证结果 */}
-      {verificationResult && !displayError && (
+      {visibleVerificationResult && (
         <div
           className={`api-key-section__verification-result ${
-            verificationResult.isValid
+            visibleVerificationResult.isValid
               ? 'api-key-section__verification-result--success'
               : 'api-key-section__verification-result--failure'
           }`}
           role="status"
           aria-live="polite"
         >
-          {verificationResult.isValid
-            ? '✅ Key valid'
-            : `❌ ${verificationResult.error ?? 'Key invalid or expired'}`}
+          {visibleVerificationResult.isValid
+            ? `✅ ${messages.settings.sections.apiKey.valid}`
+            : `❌ ${messages.apiKeyErrors[visibleVerificationResult.error ?? 'INVALID_OR_EXPIRED']}`}
         </div>
       )}
     </section>

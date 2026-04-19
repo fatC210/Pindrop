@@ -10,6 +10,12 @@ import fc from 'fast-check';
 import type { CacheStatistics } from '../types';
 import { calculateTotalSizeMB, formatCacheStats } from '../cacheUtils';
 
+const CACHE_COPY = {
+  unavailable: 'Cache unavailable',
+  formatSummary: (count: number, totalSizeMB: number) =>
+    `${count} soundscapes · ${totalSizeMB} MB`,
+};
+
 // ---------------------------------------------------------------------------
 // Property 6: calculateTotalSizeMB 计算正确性
 // ---------------------------------------------------------------------------
@@ -75,7 +81,7 @@ describe('Property 7: formatCacheStats 格式一致性', () => {
       fc.property(
         cacheStatisticsArb,
         (stats: CacheStatistics) => {
-          const result = formatCacheStats(stats);
+          const result = formatCacheStats(stats, CACHE_COPY);
           const expected = `${stats.soundscapeCount} soundscapes · ${stats.totalSizeMB} MB`;
 
           expect(result).toBe(expected);
@@ -91,10 +97,10 @@ describe('Property 7: formatCacheStats 格式一致性', () => {
    * 对于 null 或 undefined 输入，formatCacheStats 应返回 "Cache unavailable"。
    */
   test('null 输入返回 "Cache unavailable"', () => {
-    expect(formatCacheStats(null)).toBe('Cache unavailable');
+    expect(formatCacheStats(null, CACHE_COPY)).toBe('Cache unavailable');
   });
 
   test('undefined 输入返回 "Cache unavailable"', () => {
-    expect(formatCacheStats(undefined)).toBe('Cache unavailable');
+    expect(formatCacheStats(undefined, CACHE_COPY)).toBe('Cache unavailable');
   });
 });

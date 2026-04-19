@@ -10,7 +10,10 @@
 import type { LocationContext } from '@/types/locationContext';
 import type { NominatimResponse } from '@/utils/nominatim';
 import { reverseGeocode } from '@/utils/nominatim';
-import { getCachedGeocode, cacheGeocode } from '@/utils/geocodeCache';
+import {
+  getCachedLocationContext,
+  cacheLocationContext,
+} from '@/utils/geocodeCache';
 import { classifyRegion } from './regionClassifier';
 import { getLanguageInfo } from './languageMapper';
 import { calculateTimezone } from './timezoneCalculator';
@@ -81,7 +84,8 @@ export function buildLocationContext(
     timezoneInfo = calculateTimezone(countryName, lat, lng);
   } catch (error) {
     console.error('[PinDrop Error] TimezoneCalculator:', error);
-    const utcHour = new Date().getUTCHours();
+    const now = new Date();
+    const utcHour = now.getUTCHours() + now.getUTCMinutes() / 60;
     timezoneInfo = {
       timezone: 'UTC+0',
       currentLocalHour: utcHour,
@@ -185,14 +189,12 @@ export async function resolveLocation(
 
   // 步骤 2: 检查缓存
   try {
-    const cached = await getCachedGeocode(lat, lng);
-    if (cached) {
-      // 缓存命中，但旧缓存格式（GeocodingResult）需要转换为 LocationContext
-      // 这里我们跳过缓存，因为缓存格式不匹配
-      // TODO: 在未来版本中，缓存应直接存储 LocationContext
+    const cachedContext = await getCachedLocationContext(lat, lng);
+    if (cachedContext) {
+      return cachedContext;
     }
   } catch (error) {
-    console.error('[PinDrop Error] Failed to get cached geocode:', error);
+    console.error('[PinDrop Error] Failed to get cached location context:', error);
     // 继续执行，不阻塞流程
   }
 
@@ -209,19 +211,10 @@ export async function resolveLocation(
   if (nominatimResponse) {
     const locationContext = buildLocationContext(nominatimResponse, lat, lng);
 
-    // 步骤 6: 缓存结果（注意：当前缓存格式为 GeocodingResult，需要适配）
-    // TODO: 更新缓存以存储完整的 LocationContext
     try {
-      await cacheGeocode(lat, lng, {
-        cityName: locationContext.cityName,
-        countryName: locationContext.countryName,
-        administrativeRegion: '',
-        timezone: locationContext.timezone,
-        language: locationContext.primaryLanguage,
-        isInferred: false,
-      });
+      await cacheLocationContext(lat, lng, locationContext);
     } catch (error) {
-      console.error('[PinDrop Error] Failed to cache geocode:', error);
+      console.error('[PinDrop Error] Failed to cache location context:', error);
       // 继续执行，不阻塞流程
     }
 
@@ -233,16 +226,9 @@ export async function resolveLocation(
 
   // 缓存推断结果
   try {
-    await cacheGeocode(lat, lng, {
-      cityName: inferredContext.cityName,
-      countryName: inferredContext.countryName,
-      administrativeRegion: '',
-      timezone: inferredContext.timezone,
-      language: inferredContext.primaryLanguage,
-      isInferred: true,
-    });
+    await cacheLocationContext(lat, lng, inferredContext);
   } catch (error) {
-    console.error('[PinDrop Error] Failed to cache inferred geocode:', error);
+    console.error('[PinDrop Error] Failed to cache inferred location context:', error);
     // 继续执行，不阻塞流程
   }
 

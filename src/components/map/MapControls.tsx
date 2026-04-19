@@ -3,6 +3,8 @@
 // Map zoom controls component
 import { useEffect, useState } from 'react';
 import L from 'leaflet';
+
+import { useI18n } from '@/i18n/I18nProvider';
 import './MapControls.css';
 
 export interface MapControlsProps {
@@ -10,6 +12,7 @@ export interface MapControlsProps {
 }
 
 export function MapControls({ map }: MapControlsProps) {
+  const { messages } = useI18n();
   const [zoom, setZoom] = useState(3);
 
   useEffect(() => {
@@ -40,25 +43,53 @@ export function MapControls({ map }: MapControlsProps) {
   };
 
   return (
-    <div className="map-controls" role="toolbar" aria-label="Map controls">
+    <div className="map-controls" role="toolbar" aria-label={messages.map.toolbarLabel}>
       <button
         className="map-control-button"
-        aria-label="Zoom in"
+        aria-label={messages.map.zoomIn}
         onClick={handleZoomIn}
         disabled={zoom >= 18}
       >
-        +
+        <svg
+          className="map-control-icon"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M3 8h10M8 3v10"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.7"
+          />
+        </svg>
       </button>
       <span className="zoom-level" aria-live="polite" aria-atomic="true">
         {zoom}
       </span>
       <button
         className="map-control-button"
-        aria-label="Zoom out"
+        aria-label={messages.map.zoomOut}
         onClick={handleZoomOut}
         disabled={zoom <= 2}
       >
-        −
+        <svg
+          className="map-control-icon"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M3 8h10"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.7"
+          />
+        </svg>
       </button>
     </div>
   );

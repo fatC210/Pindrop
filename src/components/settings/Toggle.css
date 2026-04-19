@@ -1,58 +1,111 @@
 /* Toggle 开关组件样式 */
 
 .toggle {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  min-width: 44px;
-  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  min-width: 58px;
+  height: 36px;
   padding: 0;
-  border: none;
-  background: var(--border, #E5E5E5);
-  border-radius: 12px;
+  border: 0;
+  background: transparent;
   cursor: pointer;
-  transition: background 0.2s ease;
-  /* 确保最小触摸目标 44px */
   touch-action: manipulation;
 }
 
 .toggle:focus-visible {
-  outline: 2px solid var(--accent, #3B82F6);
-  outline-offset: 2px;
-}
-
-.toggle--checked {
-  background: var(--accent, #3B82F6);
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .toggle--disabled {
-  opacity: 0.5;
+  opacity: 0.46;
   cursor: not-allowed;
+}
+
+.toggle__track {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  border: 1px solid rgba(86, 123, 160, 0.2);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(223, 231, 241, 0.98), rgba(210, 222, 236, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 2px rgba(86, 123, 160, 0.18);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.toggle:hover .toggle__track {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 2px rgba(86, 123, 160, 0.18),
+    0 8px 14px rgba(38, 66, 99, 0.08);
+}
+
+.toggle--checked .toggle__track {
+  border-color: transparent;
+  background:
+    linear-gradient(135deg, rgba(12, 90, 214, 0.92), rgba(42, 120, 255, 0.94));
+  box-shadow: 0 12px 22px rgba(12, 90, 214, 0.22);
+}
+
+.toggle__track::before,
+.toggle__track::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: opacity 0.18s ease;
+}
+
+.toggle__track::before {
+  left: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(95, 111, 131, 0.38);
+}
+
+.toggle__track::after {
+  right: 11px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.76);
+  opacity: 0.4;
+}
+
+.toggle--checked .toggle__track::before {
+  opacity: 0.2;
+}
+
+.toggle--checked .toggle__track::after {
+  opacity: 1;
 }
 
 .toggle__thumb {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  background: #FFFFFF;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  transition: transform 0.2s ease;
+  background: linear-gradient(180deg, #ffffff, #eef3f8);
+  box-shadow:
+    0 6px 12px rgba(23, 41, 65, 0.16),
+    inset 0 1px 1px rgba(255, 255, 255, 0.88);
+  transition: transform 0.18s ease;
   pointer-events: none;
 }
 
 .toggle--checked .toggle__thumb {
-  transform: translateX(20px);
-}
-
-/* 暗色主题支持 */
-@media (prefers-color-scheme: dark) {
-  .toggle {
-    background: var(--border, #404040);
-  }
-
-  .toggle--checked {
-    background: var(--accent, #60A5FA);
-  }
+  transform: translateX(22px);
 }

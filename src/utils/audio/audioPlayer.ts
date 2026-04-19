@@ -87,6 +87,9 @@ export class AudioPlayer {
   /** 音频生成函数（用于动态事件） */
   private audioGeneratorFn: AudioGeneratorFn;
 
+  /** 是否启用动态事件 */
+  private dynamicEventsEnabled: boolean = true;
+
   constructor(audioGeneratorFn?: AudioGeneratorFn) {
     this.contextManager = new AudioContextManager();
     this.mixer = new FiveLayerMixer();
@@ -102,8 +105,8 @@ export class AudioPlayer {
     // 默认使用空操作生成函数（MVP 阶段可由外部注入实际实现）
     this.audioGeneratorFn = audioGeneratorFn ?? (async () => new Blob());
 
-    // 初始化时从 localStorage 加载层音量偏好
-    this.loadLayerVolumesFromPreferences();
+    // 初始化时从 localStorage 加载播放相关偏好
+    this.loadPlaybackPreferences();
   }
 
   /**
@@ -465,6 +468,17 @@ export class AudioPlayer {
     }
   }
 
+  setFadeInDuration(durationSeconds: number): void {
+    this.fadeController.setDurations({ fadeInDuration: durationSeconds });
+  }
+
+  setDynamicEventsEnabled(enabled: boolean): void {
+    this.dynamicEventsEnabled = enabled;
+    if (!enabled) {
+      this.dynamicEventPlayer.stop();
+    }
+  }
+
   /**
    * 获取当前播放状态
    *
@@ -603,6 +617,10 @@ export class AudioPlayer {
       return;
     }
 
+    if (!this.dynamicEventsEnabled) {
+      return;
+    }
+
     // 从配方的 location 中获取动态事件池
     // 动态事件池来自上游 SoundscapeRecipe 的 dynamicEvents 字段（如果存在）
     // 或者从 regionType 映射获取
@@ -649,11 +667,14 @@ export class AudioPlayer {
    *
    * @private
    */
-  private loadLayerVolumesFromPreferences(): void {
+  private loadPlaybackPreferences(): void {
     try {
       const preferences = preferencesStore.loadPreferences();
-      // 层音量在 applyLayerVolumesFromPreferences 中应用
-      // 这里只是确保偏好已加载
+      this.dynamicEventsEnabled = preferences.dynamicEvents;
+      this.fadeController.setDurations({
+        fadeInDuration: preferences.fadeInDuration,
+      });
+
       if (preferences.layerVolumes) {
         console.log(`${LOG_PREFIX} 已加载层音量偏好`);
       }

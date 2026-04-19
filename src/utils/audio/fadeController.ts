@@ -16,6 +16,27 @@ import { FADE_IN_DURATION_S, FADE_OUT_DURATION_S, ALL_LAYER_TYPES } from './type
  * 提供淡入、淡出和取消淡化的方法，支持单层和全层操作。
  */
 export class FadeController {
+  private fadeInDuration = FADE_IN_DURATION_S;
+  private fadeOutDuration = FADE_OUT_DURATION_S;
+
+  setDurations(options: { fadeInDuration?: number; fadeOutDuration?: number }): void {
+    if (
+      typeof options.fadeInDuration === 'number' &&
+      Number.isFinite(options.fadeInDuration) &&
+      options.fadeInDuration > 0
+    ) {
+      this.fadeInDuration = options.fadeInDuration;
+    }
+
+    if (
+      typeof options.fadeOutDuration === 'number' &&
+      Number.isFinite(options.fadeOutDuration) &&
+      options.fadeOutDuration > 0
+    ) {
+      this.fadeOutDuration = options.fadeOutDuration;
+    }
+  }
+
   /**
    * 对指定 GainNode 执行淡入
    *
@@ -33,7 +54,7 @@ export class FadeController {
     gainNode.gain.setValueAtTime(0, currentTime);
 
     // 步骤 3: 线性渐变到目标音量，持续 1.5 秒
-    gainNode.gain.linearRampToValueAtTime(targetVolume, currentTime + FADE_IN_DURATION_S);
+    gainNode.gain.linearRampToValueAtTime(targetVolume, currentTime + this.fadeInDuration);
   }
 
   /**
@@ -53,7 +74,7 @@ export class FadeController {
     gainNode.gain.setValueAtTime(currentVolume, currentTime);
 
     // 步骤 3: 线性渐变到 0，持续 0.8 秒
-    gainNode.gain.linearRampToValueAtTime(0, currentTime + FADE_OUT_DURATION_S);
+    gainNode.gain.linearRampToValueAtTime(0, currentTime + this.fadeOutDuration);
   }
 
   /**

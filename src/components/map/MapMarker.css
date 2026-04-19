@@ -42,13 +42,6 @@
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
 }
 
-/* Dark theme support */
-@media (prefers-color-scheme: dark) {
-  .cached-marker {
-    border-color: #1A1A1A;
-  }
-}
-
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .cached-marker {

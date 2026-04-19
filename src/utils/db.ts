@@ -1,5 +1,6 @@
 // IndexedDB schema and initialization for PinDrop
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import type { LocationContext } from '@/types/locationContext';
 
 /**
  * Database schema for PinDrop application
@@ -43,6 +44,7 @@ interface PinDropDB extends DBSchema {
         language: string;
         isInferred: boolean;
       };
+      locationContext?: LocationContext;
       cachedAt: number;
     };
     indexes: {

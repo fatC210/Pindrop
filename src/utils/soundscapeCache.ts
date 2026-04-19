@@ -21,6 +21,26 @@ export interface CachedSoundscape {
   recipe?: unknown;
 }
 
+function isQuotaExceededError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.name === 'QuotaExceededError' || error.message.includes('QuotaExceeded');
+}
+
+async function writeSoundscapeCacheEntry(
+  cacheKey: string,
+  data: Omit<CachedSoundscape, 'id'>
+): Promise<void> {
+  const db = await getDB();
+
+  await db.put('soundscape_cache', {
+    ...data,
+    id: cacheKey,
+  });
+}
+
 /**
  * Get cached soundscape by cache key
  */
@@ -50,15 +70,20 @@ export async function cacheSoundscape(
   data: Omit<CachedSoundscape, 'id'>
 ): Promise<void> {
   try {
-    const db = await getDB();
-    
-    await db.put('soundscape_cache', {
-      ...data,
-      id: cacheKey,
-    });
+    await writeSoundscapeCacheEntry(cacheKey, data);
   } catch (error) {
+    if (isQuotaExceededError(error)) {
+      try {
+        await evictLRU();
+        await writeSoundscapeCacheEntry(cacheKey, data);
+        return;
+      } catch (retryError) {
+        console.error('[PinDrop Error] Failed to cache soundscape after LRU eviction:', retryError);
+        return;
+      }
+    }
+
     console.error('[PinDrop Error] Failed to cache soundscape:', error);
-    // Continue without caching - non-critical error
   }
 }
 
@@ -148,7 +173,7 @@ export async function handleStorageQuotaExceeded(
     await evictLRU();
     
     // Retry caching
-    await cacheSoundscape(cacheKey, data);
+    await writeSoundscapeCacheEntry(cacheKey, data);
   } catch (error) {
     console.error('[PinDrop Error] Failed to handle storage quota:', error);
     throw error;

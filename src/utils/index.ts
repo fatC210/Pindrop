@@ -4,7 +4,12 @@ export { calculateDistance, clampZoom } from './distance';
 export { getTimeSlot, getTimeSlotColor } from './timeSlot';
 export { generateCacheKey, generateCacheKeyNow } from './cacheKey';
 export { initDB, getDB, isIndexedDBAvailable } from './db';
-export { getCachedGeocode, cacheGeocode } from './geocodeCache';
+export {
+  getCachedGeocode,
+  cacheGeocode,
+  getCachedLocationContext,
+  cacheLocationContext,
+} from './geocodeCache';
 export type { GeocodingResult } from './geocodeCache';
 export {
   getCachedSoundscape,

@@ -6,10 +6,9 @@ export { SettingsPanel } from './SettingsPanel';
 
 // 区域组件
 export { ApiKeySection } from './ApiKeySection';
-export { MapSection } from './MapSection';
+export { LanguageSection } from './LanguageSection';
 export { PlaybackSection } from './PlaybackSection';
 export { CacheSection } from './CacheSection';
-export { AboutSection } from './AboutSection';
 
 // 基础 UI 组件
 export { Toggle } from './Toggle';
@@ -21,6 +20,7 @@ export { validateApiKeyFormat, maskApiKey, verifyApiKey } from './apiKeyUtils';
 export {
   calculateTotalSizeMB,
   formatCacheStats,
+  type CacheStatsFormatter,
   calculateCacheStatistics,
   clearAllCaches,
 } from './cacheUtils';
@@ -31,6 +31,7 @@ export {
   retrieveApiKey,
   clearApiKey,
   PREFERENCES_KEY,
+  PREFERENCES_UPDATED_EVENT,
   API_KEY_KEY,
   DEFAULT_PREFERENCES,
   PreferencesStore,
@@ -50,6 +51,9 @@ export type {
   ApiKeyState,
   ValidationResult,
   VerificationResult,
+  ApiKeyValidationErrorCode,
+  ApiKeyVerificationErrorCode,
+  ApiKeyErrorCode,
   CacheClearResult,
   SettingsError,
   SettingsState,
@@ -59,7 +63,7 @@ export type {
 } from './types';
 
 export type { ApiKeySectionProps } from './ApiKeySection';
-export type { MapSectionProps } from './MapSection';
+export type { LanguageSectionProps } from './LanguageSection';
 export type { PlaybackSectionProps } from './PlaybackSection';
 export type { CacheSectionProps } from './CacheSection';
 export type { ToggleProps } from './Toggle';

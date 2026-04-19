@@ -44,7 +44,9 @@ export function Toggle({ id, checked, onChange, disabled = false }: ToggleProps)
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >
-      <span className="toggle__thumb" />
+      <span className="toggle__track" aria-hidden="true">
+        <span className="toggle__thumb" />
+      </span>
     </button>
   );
 }

@@ -36,7 +36,7 @@ describe('TimezoneCalculator Unit Tests', () => {
 
       expect(result.timezone).toBe('Europe/Paris');
       expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(result.currentLocalHour).toBeLessThan(24);
       expect(['dawn', 'day', 'dusk', 'night']).toContain(result.timeSlot);
     });
 
@@ -45,7 +45,7 @@ describe('TimezoneCalculator Unit Tests', () => {
 
       expect(result.timezone).toBe('Asia/Tokyo');
       expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(result.currentLocalHour).toBeLessThan(24);
       expect(['dawn', 'day', 'dusk', 'night']).toContain(result.timeSlot);
     });
 
@@ -54,7 +54,7 @@ describe('TimezoneCalculator Unit Tests', () => {
 
       expect(result.timezone).toBe('America/New_York');
       expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(result.currentLocalHour).toBeLessThan(24);
       expect(['dawn', 'day', 'dusk', 'night']).toContain(result.timeSlot);
     });
 
@@ -63,7 +63,7 @@ describe('TimezoneCalculator Unit Tests', () => {
 
       expect(result.timezone).toBe('Australia/Sydney');
       expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(result.currentLocalHour).toBeLessThan(24);
       expect(['dawn', 'day', 'dusk', 'night']).toContain(result.timeSlot);
     });
   });
@@ -74,7 +74,7 @@ describe('TimezoneCalculator Unit Tests', () => {
 
       expect(result.timezone).toBe('UTC+0');
       expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(result.currentLocalHour).toBeLessThan(24);
     });
 
     it('无国家名时应使用经度估算：lng=139 → UTC+9', () => {
@@ -82,7 +82,7 @@ describe('TimezoneCalculator Unit Tests', () => {
 
       expect(result.timezone).toBe('UTC+9');
       expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(result.currentLocalHour).toBeLessThan(24);
     });
 
     it('无国家名时应使用经度估算：lng=-75 → UTC-5', () => {
@@ -90,7 +90,7 @@ describe('TimezoneCalculator Unit Tests', () => {
 
       expect(result.timezone).toBe('UTC-5');
       expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(result.currentLocalHour).toBeLessThan(24);
     });
 
     it('未知国家名应降级到经度估算', () => {
@@ -98,7 +98,7 @@ describe('TimezoneCalculator Unit Tests', () => {
 
       expect(result.timezone).toBe('UTC+3');
       expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-      expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+      expect(result.currentLocalHour).toBeLessThan(24);
     });
   });
 
@@ -241,7 +241,7 @@ describe('TimezoneCalculator Unit Tests', () => {
   });
 
   describe('currentLocalHour 范围验证', () => {
-    it('currentLocalHour 应始终在 0-23 范围内', () => {
+    it('currentLocalHour 应始终在 [0, 24) 范围内', () => {
       const countries = [
         'France',
         'Japan',
@@ -255,8 +255,8 @@ describe('TimezoneCalculator Unit Tests', () => {
         const result = calculateTimezone(country, 0, 0);
 
         expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-        expect(result.currentLocalHour).toBeLessThanOrEqual(23);
-        expect(Number.isInteger(result.currentLocalHour)).toBe(true);
+        expect(result.currentLocalHour).toBeLessThan(24);
+        expect(Number.isFinite(result.currentLocalHour)).toBe(true);
       });
     });
   });
@@ -297,8 +297,8 @@ describe('TimezoneCalculator Unit Tests', () => {
         expect(result.timezone).toBe('Europe/Paris'); // 时区字符串保持不变
         expect(result.currentLocalHour).toBe(14); // 降级到 UTC 小时
         expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-        expect(result.currentLocalHour).toBeLessThanOrEqual(23);
-        expect(Number.isInteger(result.currentLocalHour)).toBe(true);
+        expect(result.currentLocalHour).toBeLessThan(24);
+        expect(Number.isFinite(result.currentLocalHour)).toBe(true);
         expect(['dawn', 'day', 'dusk', 'night']).toContain(result.timeSlot);
         expect(result.timeSlot).toBe('day'); // 14:00 应映射到 day
       } finally {

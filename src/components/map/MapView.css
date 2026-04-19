@@ -1,0 +1,14 @@
+.map-view .map-view__canvas {
+  cursor: url('/map-pin-cursor.svg') 14 24, crosshair;
+}
+
+.map-view.map-view--pressed .map-view__canvas,
+.map-view.map-view--dragging .map-view__canvas {
+  cursor: grabbing;
+}
+
+.map-view .leaflet-control,
+.map-view .leaflet-control *,
+.map-view .cached-marker {
+  cursor: pointer;
+}

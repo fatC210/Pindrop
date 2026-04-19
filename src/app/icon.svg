@@ -1,0 +1,54 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="128"
+  height="128"
+  viewBox="0 0 128 128"
+  fill="none"
+>
+  <defs>
+    <linearGradient id="pinGradient" x1="23" y1="10" x2="89" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#62B4FF" />
+      <stop offset="0.52" stop-color="#0C5AD6" />
+      <stop offset="1" stop-color="#16325A" />
+    </linearGradient>
+    <linearGradient id="haloGradient" x1="8" y1="8" x2="92" y2="92" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A7D8FF" />
+      <stop offset="1" stop-color="#DCEEFF" />
+    </linearGradient>
+    <linearGradient id="waveGradient" x1="78" y1="18" x2="128" y2="72" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C6E3FF" />
+      <stop offset="1" stop-color="#7DB9FF" />
+    </linearGradient>
+  </defs>
+  <g transform="translate(4 24)">
+    <circle cx="48" cy="48" r="40" fill="url(#haloGradient)" opacity="0.32" />
+    <path
+      d="M48 4C29.222 4 14 19.222 14 38c0 23.276 29.049 49.215 32.34 52.094a2.8 2.8 0 0 0 3.32 0C52.95 87.215 82 61.276 82 38 82 19.222 66.778 4 48 4Z"
+      fill="url(#pinGradient)"
+    />
+    <circle cx="48" cy="38" r="16.5" stroke="#EEF7FF" stroke-width="3.4" opacity="0.95" />
+    <circle cx="48" cy="38" r="8.6" stroke="#EEF7FF" stroke-width="3.4" opacity="0.88" />
+    <circle cx="48" cy="38" r="3.6" fill="#EEF7FF" />
+    <path
+      d="M83 22c10.5 1.7 19.1 7 25.5 15.7"
+      stroke="url(#waveGradient)"
+      stroke-width="4"
+      stroke-linecap="round"
+      opacity="0.9"
+    />
+    <path
+      d="M86 34.5c14.3 2.1 26.2 9.4 34.7 21.3"
+      stroke="url(#waveGradient)"
+      stroke-width="4"
+      stroke-linecap="round"
+      opacity="0.76"
+    />
+    <path
+      d="M89 48c15.6 2.1 29.3 9.4 40.4 21.8"
+      stroke="url(#waveGradient)"
+      stroke-width="4"
+      stroke-linecap="round"
+      opacity="0.58"
+    />
+  </g>
+</svg>

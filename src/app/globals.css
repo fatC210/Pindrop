@@ -1,8 +1,42 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --background: #f3f7fb;
+  --foreground: #132238;
+  --bg-primary: rgba(255, 255, 255, 0.82);
+  --bg-secondary: #e9f0f8;
+  --bg-tertiary: #f8fbfe;
+  --text-primary: #132238;
+  --text-secondary: #5f6f83;
+  --text-tertiary: #7a8ca1;
+  --border: rgba(86, 123, 160, 0.18);
+  --border-strong: rgba(86, 123, 160, 0.26);
+  --accent: #0c5ad6;
+  --accent-hover: #0a4eb9;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(12, 90, 214, 0.12);
+  --panel-shadow: 0 24px 60px rgba(28, 54, 84, 0.18);
+  --surface-shadow: 0 18px 48px rgba(47, 74, 104, 0.12);
+  --overlay-backdrop: rgba(8, 18, 31, 0.44);
+  --page-radial: rgba(108, 168, 255, 0.18);
+  --page-gradient-start: #f7fbff;
+  --page-gradient-end: #eef3f8;
+  --map-shell: #d8e8f8;
+  --warning-bg: rgba(255, 247, 231, 0.94);
+  --warning-border: rgba(191, 129, 55, 0.28);
+  --warning-text: #7a4a10;
+  --error-bg: rgba(255, 240, 240, 0.95);
+  --error-border: rgba(201, 79, 79, 0.24);
+  --error-text: #7a1f1f;
+  --success-bg: #dcfce7;
+  --success-border: #22c55e;
+  --success-text: #166534;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-soft: #fee2e2;
+  --scrollbar-thumb: rgba(95, 111, 131, 0.42);
+  --scrollbar-thumb-hover: rgba(19, 34, 56, 0.56);
 }
 
 @theme inline {
@@ -12,62 +46,59 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  min-height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), sans-serif;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
-/* -----------------------------------------------------------------------
-   应用容器 & 设置按钮
-   Requirements: 10.1
-   ----------------------------------------------------------------------- */
-
-.app-container {
-  position: relative;
-  width: 100%;
-  height: 100vh;
-  overflow: hidden;
+/* Keep scrollbar space stable so hover/focus doesn't shift layouts. */
+* {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
-.settings-trigger-button {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid var(--border, #e5e5e5);
-  border-radius: 8px;
-  background: var(--bg-primary, #ffffff);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+*:hover,
+*:focus,
+*:focus-within {
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-.settings-trigger-button:hover {
-  background: var(--bg-secondary, #f5f5f5);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
 }
 
-.settings-trigger-button:focus-visible {
-  outline: 2px solid var(--accent, #3b82f6);
-  outline-offset: 2px;
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-.settings-trigger-button:active {
-  transform: scale(0.95);
+*::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+*:hover::-webkit-scrollbar-thumb,
+*:focus::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+}
+
+*:hover::-webkit-scrollbar-thumb:hover,
+*:focus::-webkit-scrollbar-thumb:hover,
+*:focus-within::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
 }

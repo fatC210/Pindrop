@@ -55,12 +55,15 @@ export function calculateTotalSizeMB(blobSizes: number[]): number {
  *
  * Validates: Requirements 8.3
  */
-export function formatCacheStats(stats: CacheStatistics | null | undefined): string {
+export function formatCacheStats(
+  stats: CacheStatistics | null | undefined,
+  formatter: CacheStatsFormatter
+): string {
   if (stats == null) {
-    return 'Cache unavailable';
+    return formatter.unavailable;
   }
 
-  return `${stats.soundscapeCount} soundscapes · ${stats.totalSizeMB} MB`;
+  return formatter.formatSummary(stats.soundscapeCount, stats.totalSizeMB);
 }
 
 /**
@@ -153,4 +156,8 @@ export async function clearAllCaches(): Promise<void> {
     console.error('[PinDrop Error] CACHE_CLEAR_FAILED: Failed to clear caches', error);
     throw error;
   }
+}
+export interface CacheStatsFormatter {
+  unavailable: string;
+  formatSummary: (count: number, totalSizeMB: number) => string;
 }

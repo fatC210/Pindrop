@@ -1,81 +1,55 @@
-/* 播放偏好设置区域样式 */
-
 .playback-section {
   padding: 0;
 }
 
 .playback-section__header {
-  font-size: 16px;
-  font-weight: 600;
   margin: 0 0 16px;
-  color: var(--text-primary, #1A1A1A);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .playback-section__setting-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  min-height: 44px;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid rgba(86, 123, 160, 0.14);
+  border-radius: 20px;
+  background: var(--bg-tertiary);
+}
+
+.playback-section__setting-item .toggle {
+  justify-self: end;
 }
 
 .playback-section__setting-item + .playback-section__setting-item {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .playback-section__label {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
   font-size: 14px;
-  color: var(--text-primary, #1A1A1A);
+  font-weight: 650;
+  color: var(--text-primary);
 }
 
 .playback-section__description {
-  font-size: 12px;
-  color: var(--text-secondary, #666666);
-  font-weight: 400;
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
-.playback-section__select {
-  padding: 8px 12px;
-  min-height: 44px;
-  min-width: 80px;
-  font-size: 14px;
-  color: var(--text-primary, #1A1A1A);
-  background: var(--bg-secondary, #F5F5F5);
-  border: 1px solid var(--border, #E5E5E5);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
-
-.playback-section__select:focus {
-  outline: none;
-  border-color: var(--accent, #3B82F6);
-}
-
-.playback-section__select:focus-visible {
-  outline: 2px solid var(--accent, #3B82F6);
-  outline-offset: 2px;
-}
-
-/* 暗色主题支持 */
-@media (prefers-color-scheme: dark) {
-  .playback-section__header {
-    color: var(--text-primary, #FFFFFF);
+@media (max-width: 560px) {
+  .playback-section__setting-item {
+    grid-template-columns: 1fr;
   }
 
-  .playback-section__label {
-    color: var(--text-primary, #FFFFFF);
-  }
-
-  .playback-section__description {
-    color: var(--text-secondary, #A0A0A0);
-  }
-
-  .playback-section__select {
-    color: var(--text-primary, #FFFFFF);
-    background: var(--bg-secondary, #2A2A2A);
-    border-color: var(--border, #404040);
+  .playback-section__setting-item .toggle {
+    justify-self: start;
   }
 }

@@ -60,10 +60,14 @@ export interface UseAudioPlayerReturn {
   setLayerVolume: (layerType: LayerType, volume: number) => void;
   /** 设置对话层声像位置 (-1 到 1) */
   setLayerPan: (layerType: 'dialogue' | 'secondaryDialogue', pan: number) => void;
+  /** 设置淡入时长（秒） */
+  setFadeInDuration: (durationSeconds: number) => void;
+  /** 启用或禁用动态事件 */
+  setDynamicEventsEnabled: (enabled: boolean) => void;
   /** 启用音频（处理浏览器 autoplay 策略） */
   enableAudio: () => Promise<void>;
   /** 浏览器是否支持 Web Audio API */
-  isSupported: boolean;
+  isSupported: boolean | null;
 }
 
 /**
@@ -111,7 +115,7 @@ export function useAudioPlayer(
   const [playbackState, setPlaybackState] = useState<PlaybackStateInfo>(INITIAL_STATE);
 
   // 浏览器是否支持 Web Audio API
-  const [isSupported] = useState<boolean>(checkWebAudioSupport);
+  const [isSupported, setIsSupported] = useState<boolean | null>(null);
 
   // AudioPlayer 实例（useRef 保持跨渲染稳定）
   const playerRef = useRef<AudioPlayer | null>(null);
@@ -155,7 +159,17 @@ export function useAudioPlayer(
   }, [audioGeneratorFn]);
 
   useEffect(() => {
-    if (!isSupported) {
+    const supportCheckTimer = window.setTimeout(() => {
+      setIsSupported(checkWebAudioSupport());
+    }, 0);
+
+    return (): void => {
+      window.clearTimeout(supportCheckTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isSupported === false) {
       console.warn(`${LOG_PREFIX} useAudioPlayer: 浏览器不支持 Web Audio API`);
     }
   }, [isSupported]);
@@ -241,6 +255,20 @@ export function useAudioPlayer(
     []
   );
 
+  const setFadeInDuration = useCallback((durationSeconds: number): void => {
+    const player = playerRef.current;
+    if (player) {
+      player.setFadeInDuration(durationSeconds);
+    }
+  }, []);
+
+  const setDynamicEventsEnabled = useCallback((enabled: boolean): void => {
+    const player = playerRef.current;
+    if (player) {
+      player.setDynamicEventsEnabled(enabled);
+    }
+  }, []);
+
   /**
    * 启用音频 — 处理浏览器 autoplay 策略
    *
@@ -296,6 +324,8 @@ export function useAudioPlayer(
     setMasterVolume,
     setLayerVolume,
     setLayerPan,
+    setFadeInDuration,
+    setDynamicEventsEnabled,
     enableAudio,
     isSupported,
   };

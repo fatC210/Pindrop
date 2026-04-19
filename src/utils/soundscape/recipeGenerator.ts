@@ -39,8 +39,11 @@ import {
  * @returns "HH:MM" 格式字符串，如 hour=14 → "14:00"，hour=3 → "03:00"
  */
 function formatLocalTime(hour: number): string {
-  const h = Math.floor(clamp(hour, 0, 23));
-  return h.toString().padStart(2, '0') + ':00';
+  const normalizedHour = ((hour % 24) + 24) % 24;
+  const totalMinutes = Math.floor(normalizedHour * 60);
+  const h = Math.floor(totalMinutes / 60) % 24;
+  const m = totalMinutes % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
 /**

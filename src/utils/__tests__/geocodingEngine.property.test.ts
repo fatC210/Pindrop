@@ -143,7 +143,7 @@ describe('GeocodingEngine Property Tests', () => {
             expect(typeof context.timezone).toBe('string');
 
             expect(context.currentLocalHour).toBeGreaterThanOrEqual(0);
-            expect(context.currentLocalHour).toBeLessThanOrEqual(23);
+            expect(context.currentLocalHour).toBeLessThan(24);
 
             expect(['dawn', 'day', 'dusk', 'night']).toContain(
               context.timeSlot

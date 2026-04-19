@@ -12,12 +12,14 @@ import {
   PreferencesStore,
 } from '../preferencesStore';
 import type { UserPreferences, FadeInDuration, MapTheme } from '../types';
+import type { AppLocale } from '@/i18n/types';
 
 // ---------------------------------------------------------------------------
 // 常量
 // ---------------------------------------------------------------------------
 
-const VALID_MAP_STYLES: MapTheme[] = ['light', 'dark'];
+const VALID_MAP_STYLES: MapTheme[] = ['light'];
+const VALID_LOCALES: AppLocale[] = ['en', 'zh-CN'];
 const VALID_FADE_IN_DURATIONS: FadeInDuration[] = [0.5, 1.0, 1.5, 2.0, 3.0];
 const LAYER_VOLUME_KEYS = [
   'ambient',
@@ -33,6 +35,7 @@ const LAYER_VOLUME_KEYS = [
 
 /** 生成有效的 UserPreferences 对象 */
 const userPreferencesArb: fc.Arbitrary<UserPreferences> = fc.record({
+  interfaceLanguage: fc.constantFrom<AppLocale>('en', 'zh-CN'),
   mapStyle: fc.constantFrom<MapTheme>('light', 'dark'),
   autoPlay: fc.boolean(),
   fadeInDuration: fc.constantFrom<FadeInDuration>(0.5, 1.0, 1.5, 2.0, 3.0),
@@ -56,7 +59,7 @@ describe('Property 8: 偏好设置验证总是返回有效值', () => {
    * **Validates: Requirements 9.3**
    *
    * 对于任意 unknown 类型的输入，validatePreferences(input) 应返回一个完全有效的
-   * UserPreferences 对象，其中 mapStyle 为 'light' 或 'dark'，masterVolume 在 [0, 1]，
+ * UserPreferences 对象，其中 mapStyle 会被归一化为 'light'，masterVolume 在 [0, 1]，
    * fadeInDuration 为允许值之一，所有 layerVolumes 在 [0, 1]。
    */
   test('任意输入总是返回有效的 mapStyle', () => {
@@ -66,6 +69,19 @@ describe('Property 8: 偏好设置验证总是返回有效值', () => {
         (input: unknown) => {
           const result = validatePreferences(input);
           expect(VALID_MAP_STYLES).toContain(result.mapStyle);
+        },
+      ),
+      { numRuns: 100 },
+    );
+  });
+
+  test('任意输入总是返回有效的 interfaceLanguage', () => {
+    fc.assert(
+      fc.property(
+        fc.anything(),
+        (input: unknown) => {
+          const result = validatePreferences(input);
+          expect(VALID_LOCALES).toContain(result.interfaceLanguage);
         },
       ),
       { numRuns: 100 },
@@ -153,7 +169,7 @@ describe('Property 9: 偏好设置往返一致性', () => {
    * 对于任意有效的 UserPreferences 对象，通过 savePreferences 保存后再通过
    * loadPreferences 加载，返回的偏好设置应与原始值等价。
    */
-  test('保存后加载的偏好设置与原始值等价', () => {
+  test('保存后加载的偏好设置保持等价，并将主题归一化为浅色', () => {
     fc.assert(
       fc.property(
         userPreferencesArb,
@@ -165,8 +181,9 @@ describe('Property 9: 偏好设置往返一致性', () => {
           const loaded = store.loadPreferences();
 
           // 验证所有字段等价
-          expect(loaded.mapStyle).toBe(prefs.mapStyle);
-          expect(loaded.autoPlay).toBe(prefs.autoPlay);
+          expect(loaded.interfaceLanguage).toBe(prefs.interfaceLanguage);
+          expect(loaded.mapStyle).toBe('light');
+          expect(loaded.autoPlay).toBe(true);
           expect(loaded.fadeInDuration).toBe(prefs.fadeInDuration);
           expect(loaded.dynamicEvents).toBe(prefs.dynamicEvents);
           expect(loaded.masterVolume).toBe(prefs.masterVolume);

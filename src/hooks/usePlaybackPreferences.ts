@@ -19,6 +19,7 @@ import type { FadeInDuration } from '@/components/settings/types';
 import {
   preferencesStore,
   PREFERENCES_KEY,
+  PREFERENCES_UPDATED_EVENT,
 } from '@/components/settings/preferencesStore';
 
 /** usePlaybackPreferences 返回的播放偏好对象 */
@@ -73,9 +74,15 @@ export function usePlaybackPreferences(): PlaybackPreferences & { refresh: () =>
       }
     };
 
+    const handlePreferencesUpdate = (): void => {
+      refresh();
+    };
+
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener(PREFERENCES_UPDATED_EVENT, handlePreferencesUpdate);
     return (): void => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(PREFERENCES_UPDATED_EVENT, handlePreferencesUpdate);
     };
   }, [refresh]);
 

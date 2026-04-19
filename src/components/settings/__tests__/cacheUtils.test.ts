@@ -27,6 +27,12 @@ import {
   clearAllCaches,
 } from '../cacheUtils';
 
+const CACHE_COPY = {
+  unavailable: 'Cache unavailable',
+  formatSummary: (count: number, totalSizeMB: number) =>
+    `${count} soundscapes · ${totalSizeMB} MB`,
+};
+
 // ---------------------------------------------------------------------------
 // calculateTotalSizeMB
 // ---------------------------------------------------------------------------
@@ -81,7 +87,7 @@ describe('formatCacheStats', () => {
       geocodeCount: 10,
       historyCount: 3,
     };
-    expect(formatCacheStats(stats)).toBe('5 soundscapes · 12.34 MB');
+    expect(formatCacheStats(stats, CACHE_COPY)).toBe('5 soundscapes · 12.34 MB');
   });
 
   test('formats zero stats correctly', () => {
@@ -91,15 +97,15 @@ describe('formatCacheStats', () => {
       geocodeCount: 0,
       historyCount: 0,
     };
-    expect(formatCacheStats(stats)).toBe('0 soundscapes · 0 MB');
+    expect(formatCacheStats(stats, CACHE_COPY)).toBe('0 soundscapes · 0 MB');
   });
 
   test('returns "Cache unavailable" for null', () => {
-    expect(formatCacheStats(null)).toBe('Cache unavailable');
+    expect(formatCacheStats(null, CACHE_COPY)).toBe('Cache unavailable');
   });
 
   test('returns "Cache unavailable" for undefined', () => {
-    expect(formatCacheStats(undefined)).toBe('Cache unavailable');
+    expect(formatCacheStats(undefined, CACHE_COPY)).toBe('Cache unavailable');
   });
 
   test('formats stats with a single soundscape', () => {
@@ -109,7 +115,7 @@ describe('formatCacheStats', () => {
       geocodeCount: 1,
       historyCount: 1,
     };
-    expect(formatCacheStats(stats)).toBe('1 soundscapes · 0.5 MB');
+    expect(formatCacheStats(stats, CACHE_COPY)).toBe('1 soundscapes · 0.5 MB');
   });
 });
 

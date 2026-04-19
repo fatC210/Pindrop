@@ -131,7 +131,7 @@ function estimateTimezoneFromLongitude(lng: number): string {
  * 对于 UTC±N 格式的时区，手动计算偏移。
  *
  * @param timezone - IANA 时区字符串或 UTC±N 格式
- * @returns 当前小时 (0-23)
+ * @returns 当前小时（含分钟精度的小数小时，范围 [0, 24)）
  */
 function getCurrentHourInTimezone(timezone: string): number {
   try {
@@ -142,7 +142,8 @@ function getCurrentHourInTimezone(timezone: string): number {
         const offset = parseInt(match[1], 10);
         const now = new Date();
         const utcHour = now.getUTCHours();
-        const localHour = (utcHour + offset + 24) % 24;
+        const utcMinutes = now.getUTCMinutes();
+        const localHour = (utcHour + utcMinutes / 60 + offset + 24) % 24;
         return localHour;
       }
     }
@@ -150,25 +151,31 @@ function getCurrentHourInTimezone(timezone: string): number {
     // 使用 Intl.DateTimeFormat 解析 IANA 时区
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      hour: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
       hour12: false,
     });
 
     const parts = formatter.formatToParts(new Date());
     const hourPart = parts.find((part) => part.type === 'hour');
+    const minutePart = parts.find((part) => part.type === 'minute');
 
-    if (hourPart) {
+    if (hourPart && minutePart) {
       const hour = parseInt(hourPart.value, 10);
+      const minute = parseInt(minutePart.value, 10);
       // 处理 24 小时制的午夜 (24 → 0)
-      return hour === 24 ? 0 : hour;
+      const normalizedHour = hour === 24 ? 0 : hour;
+      return normalizedHour + minute / 60;
     }
 
     // 降级：返回 UTC 小时
-    return new Date().getUTCHours();
+    const now = new Date();
+    return now.getUTCHours() + now.getUTCMinutes() / 60;
   } catch (error) {
     // 时区解析失败，返回 UTC 小时
     console.error(`[PinDrop Error] TimezoneCalculator: Failed to parse timezone ${timezone}`, error);
-    return new Date().getUTCHours();
+    const now = new Date();
+    return now.getUTCHours() + now.getUTCMinutes() / 60;
   }
 }
 

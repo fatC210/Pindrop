@@ -71,7 +71,7 @@ export interface LocationContext {
   // 时间
   /** 时区，IANA 格式或 "UTC±N" */
   timezone: string;
-  /** 当地当前小时，0-23 */
+  /** 当地当前小时，0-23.999...，支持分钟精度小数小时 */
   currentLocalHour: number;
   /** 时间档 */
   timeSlot: import('@/utils/timeSlot').TimeSlot;
@@ -249,9 +249,8 @@ export function parseLocationContext(json: string): LocationContext | null {
     if (typeof obj.timezone !== 'string') return null;
     if (
       typeof obj.currentLocalHour !== 'number' ||
-      !Number.isInteger(obj.currentLocalHour) ||
       obj.currentLocalHour < 0 ||
-      obj.currentLocalHour > 23
+      obj.currentLocalHour >= 24
     ) {
       return null;
     }

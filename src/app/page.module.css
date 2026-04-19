@@ -1,0 +1,314 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 16px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top left, var(--page-radial), transparent 28%),
+    linear-gradient(180deg, var(--page-gradient-start) 0%, var(--page-gradient-end) 100%);
+  color: var(--text-primary);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerCopy {
+  display: grid;
+  gap: 8px;
+  max-width: min(60rem, 100%);
+}
+
+.headerControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.brandHeading {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.brandLogo {
+  display: block;
+  width: clamp(50px, 7vw, 64px);
+  height: auto;
+  flex: 0 0 auto;
+}
+
+.brandName {
+  font-size: clamp(24px, 3vw, 30px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+.heroNote {
+  max-width: min(42rem, 100%);
+  padding: 0;
+}
+
+.heroText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.heroNoteWarning .heroText {
+  color: var(--warning-text);
+}
+
+.heroNoteError .heroText {
+  color: var(--error-text);
+}
+
+.languageSwitcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 24px rgba(38, 66, 99, 0.1);
+}
+
+.languageButton {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.languageButton:hover {
+  color: var(--text-primary);
+  background: rgba(12, 90, 214, 0.08);
+}
+
+.languageButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.languageButtonActive {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  box-shadow: 0 8px 16px rgba(12, 90, 214, 0.22);
+}
+
+.languageButtonActive:hover {
+  background: var(--accent-hover);
+  color: var(--accent-contrast);
+}
+
+.settingsButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-primary);
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 24px rgba(38, 66, 99, 0.1);
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.settingsButton:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 28px rgba(38, 66, 99, 0.14);
+}
+
+.settingsButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.settingsIcon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.main {
+  min-height: 0;
+}
+
+.mapShell {
+  width: 100%;
+  height: clamp(520px, calc(100vh - 270px), 78vh);
+  min-height: 520px;
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--surface-shadow);
+  background: var(--map-shell);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.map {
+  width: 100%;
+  height: 100%;
+}
+
+.card {
+  border-radius: 24px;
+  padding: 18px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(12px);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.cardEyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+
+.favoritesBar {
+  border-radius: 24px;
+  padding: 16px 18px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  box-shadow: var(--panel-shadow);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.favoritesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.favoritesCount {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.favoriteList {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.favoriteChip {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  background: var(--text-primary);
+  color: var(--accent-contrast);
+}
+
+.emptyFavorites {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 860px) {
+  .page {
+    padding: 14px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .headerControls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mapShell {
+    height: 68vh;
+    min-height: 68vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .brandLogo {
+    width: 48px;
+  }
+
+  .brandName {
+    font-size: 22px;
+  }
+
+  .headerControls {
+    align-items: stretch;
+  }
+
+  .languageSwitcher {
+    width: 100%;
+  }
+
+  .languageButton {
+    flex: 1 1 0;
+  }
+}

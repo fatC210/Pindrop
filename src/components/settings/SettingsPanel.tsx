@@ -12,21 +12,23 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 
+import { useI18n } from '@/i18n/I18nProvider';
 import type {
   SettingsPanelProps,
   UserPreferences,
   CacheStatistics,
   VerificationResult,
+  ApiKeyErrorCode,
 } from './types';
 import { preferencesStore, retrieveApiKey } from './preferencesStore';
-import { verifyApiKey } from './apiKeyUtils';
+import { normalizeApiKey, verifyApiKey } from './apiKeyUtils';
 import { calculateCacheStatistics, clearAllCaches } from './cacheUtils';
 import { ApiKeySection } from './ApiKeySection';
-import { MapSection } from './MapSection';
 import { PlaybackSection } from './PlaybackSection';
 import { CacheSection } from './CacheSection';
-import { AboutSection } from './AboutSection';
 import './SettingsPanel.css';
+
+const PANEL_TRANSITION_MS = 220;
 
 /**
  * 设置面板主组件。
@@ -39,9 +41,8 @@ import './SettingsPanel.css';
 export function SettingsPanel({
   isOpen,
   onClose,
-  onThemeChange,
-  currentTheme,
 }: SettingsPanelProps): JSX.Element | null {
+  const { messages } = useI18n();
   const storageUnavailable =
     typeof window !== 'undefined' && !preferencesStore.isLocalStorageAvailable();
 
@@ -53,7 +54,7 @@ export function SettingsPanel({
   const [apiKey, setApiKey] = useState<string>(() => retrieveApiKey() ?? '');
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
-  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [apiKeyError, setApiKeyError] = useState<ApiKeyErrorCode | null>(null);
 
   // 偏好状态
   const [preferences, setPreferences] = useState<UserPreferences>(() => {
@@ -147,7 +148,7 @@ export function SettingsPanel({
     } catch {
       console.error('[PinDrop Error] CACHE_STATS_LOAD_FAILED: Failed to load cache statistics');
       setCacheStats(null);
-      setErrorMessage('Cache statistics unavailable');
+      setErrorMessage(messages.settings.cacheStatsUnavailable);
     } finally {
       setIsLoadingStats(false);
     }
@@ -155,7 +156,7 @@ export function SettingsPanel({
 
   function handleClose(): void {
     setIsClosing(true);
-    announce('Settings panel closed');
+    announce(messages.settings.closedAnnouncement);
 
     window.setTimeout(() => {
       setIsClosing(false);
@@ -163,7 +164,7 @@ export function SettingsPanel({
       window.setTimeout(() => {
         previousFocusRef.current?.focus();
       }, 0);
-    }, 200);
+    }, PANEL_TRANSITION_MS);
   }
 
   function handleOverlayClick(event: ReactMouseEvent<HTMLDivElement>): void {
@@ -183,42 +184,25 @@ export function SettingsPanel({
     setApiKeyError(null);
   }
 
-  async function handleVerifyApiKey(): Promise<void> {
+  async function handleVerifyApiKey(candidateApiKey: string): Promise<void> {
+    const normalizedApiKey = normalizeApiKey(candidateApiKey);
     setIsVerifying(true);
     setVerificationResult(null);
     setApiKeyError(null);
 
     try {
-      const result = await verifyApiKey(apiKey);
+      const result = await verifyApiKey(normalizedApiKey);
       setVerificationResult(result);
+      setApiKey(normalizedApiKey);
       if (!result.isValid && result.error) {
         setApiKeyError(result.error);
       }
     } catch {
       console.error('[PinDrop Error] API_KEY_VERIFICATION_FAILED: Verification request failed');
-      setApiKeyError('Verification failed. Check connection.');
+      setApiKeyError('CONNECTION_FAILED');
     } finally {
       setIsVerifying(false);
     }
-  }
-
-  function handleThemeChange(theme: 'light' | 'dark'): void {
-    const updated = { ...preferences, mapStyle: theme as UserPreferences['mapStyle'] };
-    savePreferences(updated);
-    onThemeChange(theme);
-  }
-
-  function handleAutoPlayChange(enabled: boolean): void {
-    const updated = { ...preferences, autoPlay: enabled };
-    savePreferences(updated);
-  }
-
-  function handleFadeInChange(duration: number): void {
-    const updated = {
-      ...preferences,
-      fadeInDuration: duration as UserPreferences['fadeInDuration'],
-    };
-    savePreferences(updated);
   }
 
   function handleDynamicEventsChange(enabled: boolean): void {
@@ -232,13 +216,13 @@ export function SettingsPanel({
 
     try {
       await clearAllCaches();
-      setSuccessMessage('Cache cleared successfully');
-      announce('Cache cleared successfully');
+      setSuccessMessage(messages.settings.cacheClearedSuccess);
+      announce(messages.settings.cacheClearedSuccess);
       await loadCacheStats();
     } catch {
       console.error('[PinDrop Error] CACHE_CLEAR_FAILED: Failed to clear cache');
-      setErrorMessage('Failed to clear cache');
-      announce('Failed to clear cache');
+      setErrorMessage(messages.settings.cacheClearedFailure);
+      announce(messages.settings.cacheClearedFailure);
     } finally {
       setIsClearingCache(false);
     }
@@ -246,6 +230,10 @@ export function SettingsPanel({
 
   const announceFromEffect = useEffectEvent((message: string) => {
     announce(message);
+  });
+
+  const loadCacheStatsFromEffect = useEffectEvent(() => {
+    void loadCacheStats();
   });
 
   const closeFromEffect = useEffectEvent(() => {
@@ -273,9 +261,12 @@ export function SettingsPanel({
   useEffect(() => {
     if (!isOpen) return;
 
+    const syncPreferencesTimer = window.setTimeout(() => {
+      setPreferences(preferencesStore.loadPreferences());
+    }, 0);
     previousFocusRef.current = document.activeElement as HTMLElement | null;
     const statsTimer = window.setTimeout(() => {
-      void loadCacheStats();
+      loadCacheStatsFromEffect();
     }, 0);
 
     const focusTimer = window.setTimeout(() => {
@@ -283,15 +274,16 @@ export function SettingsPanel({
     }, 0);
 
     const announcementTimer = window.setTimeout(() => {
-      announceFromEffect('Settings panel opened');
+      announceFromEffect(messages.settings.openedAnnouncement);
     }, 0);
 
     return (): void => {
+      window.clearTimeout(syncPreferencesTimer);
       window.clearTimeout(statsTimer);
       window.clearTimeout(focusTimer);
       window.clearTimeout(announcementTimer);
     };
-  }, [isOpen]);
+  }, [isOpen, messages.settings.openedAnnouncement]);
 
   useEffect(() => {
     if (!successMessage) {
@@ -362,8 +354,6 @@ export function SettingsPanel({
   // 渲染
   // ---------------------------------------------------------------------------
 
-  const visibleTheme = storageUnavailable ? currentTheme : preferences.mapStyle;
-
   // 面板关闭且无关闭动画时不渲染
   if (!isOpen && !isClosing) {
     return null;
@@ -388,90 +378,101 @@ export function SettingsPanel({
         aria-modal="true"
         aria-labelledby="settings-panel-title"
       >
-        {/* 面板头部 */}
-        <div className="settings-panel__header">
-          <h2 id="settings-panel-title" className="settings-panel__title">
-            Settings
-          </h2>
+        <div className="settings-panel__hero">
+          <div className="settings-panel__hero-copy">
+            <p className="settings-panel__eyebrow">{messages.common.appName}</p>
+            <h2 id="settings-panel-title" className="settings-panel__title">
+              {messages.settings.panelTitle}
+            </h2>
+            <p className="settings-panel__subtitle">
+              {messages.settings.sections.apiKey.header}
+              {' · '}
+              {messages.settings.sections.playback.header}
+              {' · '}
+              {messages.settings.sections.cache.header}
+            </p>
+          </div>
           <button
             ref={closeButtonRef}
             type="button"
             className="settings-panel__close-button"
             onClick={handleClose}
-            aria-label="Close settings"
+            aria-label={messages.settings.closeAria}
           >
-            ✕
+            <svg
+              className="settings-panel__close-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.9"
+              />
+            </svg>
           </button>
         </div>
 
-        {/* 可滚动内容区域 */}
         <div className="settings-panel__content">
-          {/* 存储不可用警告 */}
-          {storageUnavailable && (
-            <div className="settings-panel__storage-warning" role="alert">
-              <span className="settings-panel__storage-warning-icon" aria-hidden="true">
-                ⚠️
-              </span>
-              <span>Settings cannot be saved</span>
+          {(storageUnavailable || successMessage || errorMessage) && (
+            <div className="settings-panel__status-stack">
+              {storageUnavailable && (
+                <div className="settings-panel__storage-warning" role="alert">
+                  <span className="settings-panel__storage-warning-icon" aria-hidden="true">
+                    ⚠️
+                  </span>
+                  <span>{messages.settings.storageUnavailable}</span>
+                </div>
+              )}
+
+              {successMessage && (
+                <div
+                  className="settings-panel__message settings-panel__message--success"
+                  aria-live="polite"
+                >
+                  {successMessage}
+                </div>
+              )}
+
+              {errorMessage && (
+                <div className="settings-panel__message settings-panel__message--error" role="alert">
+                  {errorMessage}
+                </div>
+              )}
             </div>
           )}
 
-          {/* 成功消息 */}
-          {successMessage && (
-            <div className="settings-panel__message settings-panel__message--success" aria-live="polite">
-              {successMessage}
+          <div className="settings-panel__grid">
+            <div className="settings-panel__section settings-panel__section--wide">
+              <ApiKeySection
+                apiKey={apiKey}
+                onApiKeyChange={handleApiKeyChange}
+                onVerify={handleVerifyApiKey}
+                isVerifying={isVerifying}
+                verificationResult={verificationResult}
+                error={apiKeyError}
+              />
             </div>
-          )}
 
-          {/* 错误消息 */}
-          {errorMessage && (
-            <div className="settings-panel__message settings-panel__message--error" role="alert">
-              {errorMessage}
+            <div className="settings-panel__section">
+              <PlaybackSection
+                dynamicEvents={preferences.dynamicEvents}
+                onDynamicEventsChange={handleDynamicEventsChange}
+              />
             </div>
-          )}
 
-          {/* API Key 区域 */}
-          <div className="settings-panel__section">
-            <ApiKeySection
-              apiKey={apiKey}
-              onApiKeyChange={handleApiKeyChange}
-              onVerify={handleVerifyApiKey}
-              isVerifying={isVerifying}
-              verificationResult={verificationResult}
-              error={apiKeyError}
-            />
-          </div>
-
-          {/* 地图区域 */}
-          <div className="settings-panel__section">
-            <MapSection theme={visibleTheme} onThemeChange={handleThemeChange} />
-          </div>
-
-          {/* 播放区域 */}
-          <div className="settings-panel__section">
-            <PlaybackSection
-              autoPlay={preferences.autoPlay}
-              fadeInDuration={preferences.fadeInDuration}
-              dynamicEvents={preferences.dynamicEvents}
-              onAutoPlayChange={handleAutoPlayChange}
-              onFadeInChange={handleFadeInChange}
-              onDynamicEventsChange={handleDynamicEventsChange}
-            />
-          </div>
-
-          {/* 缓存区域 */}
-          <div className="settings-panel__section">
-            <CacheSection
-              stats={cacheStats}
-              isLoading={isLoadingStats}
-              onClearCache={handleClearCache}
-              isClearingCache={isClearingCache}
-            />
-          </div>
-
-          {/* 关于区域 */}
-          <div className="settings-panel__section">
-            <AboutSection />
+            <div className="settings-panel__section settings-panel__section--wide">
+              <CacheSection
+                stats={cacheStats}
+                isLoading={isLoadingStats}
+                onClearCache={handleClearCache}
+                isClearingCache={isClearingCache}
+              />
+            </div>
           </div>
         </div>
       </div>

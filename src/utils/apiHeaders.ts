@@ -2,7 +2,7 @@
  * ElevenLabs API 请求头工具函数。
  *
  * 从 localStorage 读取 API key 并构造请求头对象，
- * 供任何需要调用 ElevenLabs API 的组件使用。
+ * 供浏览器直接调用 ElevenLabs API 的组件使用。
  *
  * @module apiHeaders
  *
@@ -13,25 +13,24 @@ import { retrieveApiKey } from '@/components/settings/preferencesStore';
 
 /** getApiKeyHeader 返回的请求头类型 */
 export interface ApiKeyHeader {
-  'x-elevenlabs-api-key': string;
+  'xi-api-key': string;
 }
 
 /**
  * 从 localStorage 获取 ElevenLabs API key 并返回请求头对象。
  *
  * 如果 API key 不存在或为空，返回空对象。
- * 调用方应检查返回值是否包含 `x-elevenlabs-api-key` 属性。
+ * 调用方应检查返回值是否包含 `xi-api-key` 属性。
  *
- * API key 仅通过 `x-elevenlabs-api-key` header 发送，
- * 且仅发送到 `/api/elevenlabs/*` 端点。
+ * API key 仅通过 `xi-api-key` header 发送到 ElevenLabs 官方 API。
  *
  * @returns 包含 API key header 的对象，或空对象
  *
  * @example
  * ```ts
  * const headers = getApiKeyHeader();
- * if ('x-elevenlabs-api-key' in headers) {
- *   const response = await fetch('/api/elevenlabs/sound-generation', {
+ * if ('xi-api-key' in headers) {
+ *   const response = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
  *     method: 'POST',
  *     headers: { ...headers, 'Content-Type': 'application/json' },
  *     body: JSON.stringify(payload),
@@ -49,7 +48,7 @@ export function getApiKeyHeader(): ApiKeyHeader | Record<string, never> {
   }
 
   return {
-    'x-elevenlabs-api-key': apiKey,
+    'xi-api-key': apiKey,
   };
 }
 

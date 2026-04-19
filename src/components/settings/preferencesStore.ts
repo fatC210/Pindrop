@@ -5,6 +5,8 @@
  * @module preferencesStore
  */
 
+import { DEFAULT_LOCALE, isAppLocale } from '@/i18n/types';
+import { normalizeApiKey } from './apiKeyUtils';
 import type { UserPreferences, FadeInDuration } from './types';
 
 // ---------------------------------------------------------------------------
@@ -17,6 +19,17 @@ export const PREFERENCES_KEY = 'pindrop_preferences';
 /** localStorage key for the ElevenLabs API key */
 export const API_KEY_KEY = 'pindrop_api_key';
 
+/** Custom window event dispatched when settings-related local state changes. */
+export const PREFERENCES_UPDATED_EVENT = 'pindrop:preferences-updated';
+
+function dispatchPreferencesUpdated(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(PREFERENCES_UPDATED_EVENT));
+}
+
 // ---------------------------------------------------------------------------
 // Default preferences
 // ---------------------------------------------------------------------------
@@ -28,6 +41,7 @@ export const API_KEY_KEY = 'pindrop_api_key';
  * Validates: Requirements 11.6
  */
 export const DEFAULT_PREFERENCES: UserPreferences = {
+  interfaceLanguage: DEFAULT_LOCALE,
   mapStyle: 'light',
   autoPlay: true,
   fadeInDuration: 1.5,
@@ -73,8 +87,8 @@ function validateFadeInDuration(value: unknown): FadeInDuration {
  * Validates an unknown value as UserPreferences, replacing any invalid or
  * missing fields with their corresponding defaults.
  *
- * - `mapStyle`: accepts `'dark'` only, otherwise defaults to `'light'`
- * - `autoPlay`: accepts boolean, otherwise defaults to `true`
+ * - `mapStyle`: the app no longer exposes theme switching, so values are normalized to `'light'`
+ * - `autoPlay`: normalized to `true` because the app now always auto-plays after selection
  * - `fadeInDuration`: accepts values in `[0.5, 1.0, 1.5, 2.0, 3.0]`, otherwise defaults to `1.5`
  * - `dynamicEvents`: accepts boolean, otherwise defaults to `true`
  * - `masterVolume`: accepts number in `[0, 1]`, otherwise defaults to `0.8`
@@ -95,8 +109,11 @@ export function validatePreferences(preferences: unknown): UserPreferences {
   const layerVolumes = prefs.layerVolumes as Partial<UserPreferences['layerVolumes']> | undefined;
 
   return {
-    mapStyle: prefs.mapStyle === 'dark' ? 'dark' : 'light',
-    autoPlay: typeof prefs.autoPlay === 'boolean' ? prefs.autoPlay : true,
+    interfaceLanguage: isAppLocale(prefs.interfaceLanguage)
+      ? prefs.interfaceLanguage
+      : DEFAULT_LOCALE,
+    mapStyle: 'light',
+    autoPlay: true,
     fadeInDuration: validateFadeInDuration(prefs.fadeInDuration),
     dynamicEvents: typeof prefs.dynamicEvents === 'boolean' ? prefs.dynamicEvents : true,
     masterVolume: validateVolume(prefs.masterVolume, 0.8),
@@ -181,6 +198,7 @@ export class PreferencesStore {
     try {
       const validated = validatePreferences(preferences);
       localStorage.setItem(PREFERENCES_KEY, JSON.stringify(validated));
+      dispatchPreferencesUpdated();
     } catch (error) {
       console.error('[PinDrop Error] Failed to save preferences:', error);
     }
@@ -213,7 +231,8 @@ export const preferencesStore = new PreferencesStore();
  */
 export function storeApiKey(apiKey: string): void {
   try {
-    localStorage.setItem(API_KEY_KEY, apiKey);
+    localStorage.setItem(API_KEY_KEY, normalizeApiKey(apiKey));
+    dispatchPreferencesUpdated();
   } catch {
     console.error('[PinDrop Error] Failed to store API key');
   }
@@ -228,7 +247,12 @@ export function storeApiKey(apiKey: string): void {
  */
 export function retrieveApiKey(): string | null {
   try {
-    return localStorage.getItem(API_KEY_KEY);
+    const storedApiKey = localStorage.getItem(API_KEY_KEY);
+    if (!storedApiKey) {
+      return storedApiKey;
+    }
+
+    return normalizeApiKey(storedApiKey);
   } catch {
     return null;
   }
@@ -242,6 +266,7 @@ export function retrieveApiKey(): string | null {
 export function clearApiKey(): void {
   try {
     localStorage.removeItem(API_KEY_KEY);
+    dispatchPreferencesUpdated();
   } catch (error) {
     console.error('[PinDrop Error] Failed to clear API key:', error);
   }

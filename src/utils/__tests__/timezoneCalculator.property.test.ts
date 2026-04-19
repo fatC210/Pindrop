@@ -101,7 +101,7 @@ describe('TimezoneCalculator - Property Tests', () => {
    * 对任意输入组合（countryName 为任意字符串或 null，lat ∈ [-90, 90]，lng ∈ [-180, 180]），
    * calculateTimezone(countryName, lat, lng) 应返回一个 TimezoneInfo 对象，满足：
    * 1. timezone 为非空字符串
-   * 2. currentLocalHour 为 [0, 23] 范围内的整数
+   * 2. currentLocalHour 为 [0, 24) 范围内的有限数值
    * 3. timeSlot 为 4 个有效 TimeSlot 值之一
    * 4. timeSlot === getTimeSlot(currentLocalHour)（一致性不变量）
    *
@@ -141,7 +141,7 @@ describe('TimezoneCalculator - Property Tests', () => {
       );
     });
 
-    test('currentLocalHour 为 [0, 23] 范围内的整数', () => {
+    test('currentLocalHour 为 [0, 24) 范围内的有限数值', () => {
       fc.assert(
         fc.property(
           countryNameArb,
@@ -150,12 +150,12 @@ describe('TimezoneCalculator - Property Tests', () => {
           (countryName, lat, lng) => {
             const result = calculateTimezone(countryName, lat, lng);
 
-            // 验证 currentLocalHour 为整数
-            expect(Number.isInteger(result.currentLocalHour)).toBe(true);
+            // 验证 currentLocalHour 为有限数值
+            expect(Number.isFinite(result.currentLocalHour)).toBe(true);
 
-            // 验证 currentLocalHour ∈ [0, 23]
+            // 验证 currentLocalHour ∈ [0, 24)
             expect(result.currentLocalHour).toBeGreaterThanOrEqual(0);
-            expect(result.currentLocalHour).toBeLessThanOrEqual(23);
+            expect(result.currentLocalHour).toBeLessThan(24);
           }
         ),
         { numRuns: 100 }
