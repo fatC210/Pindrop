@@ -22,24 +22,26 @@ export function MarkerManager({
   useEffect(() => {
     if (!map) return;
 
+    const markers = markersRef.current;
+
     // Get current marker keys
     const currentKeys = new Set(cachedLocations.map((loc) => loc.id));
-    const existingKeys = new Set(markersRef.current.keys());
+    const existingKeys = new Set(markers.keys());
 
     // Remove markers that no longer exist in cache
     for (const key of existingKeys) {
       if (!currentKeys.has(key)) {
-        const marker = markersRef.current.get(key);
+        const marker = markers.get(key);
         if (marker) {
           map.removeLayer(marker);
-          markersRef.current.delete(key);
+          markers.delete(key);
         }
       }
     }
 
     // Add or update markers
     for (const location of cachedLocations) {
-      const existingMarker = markersRef.current.get(location.id);
+      const existingMarker = markers.get(location.id);
 
       if (!existingMarker) {
         // Create new marker
@@ -59,16 +61,16 @@ export function MarkerManager({
 
         // Add to map
         marker.addTo(map);
-        markersRef.current.set(location.id, marker);
+        markers.set(location.id, marker);
       }
     }
 
     // Cleanup
     return () => {
-      for (const marker of markersRef.current.values()) {
+      for (const marker of markers.values()) {
         map.removeLayer(marker);
       }
-      markersRef.current.clear();
+      markers.clear();
     };
   }, [map, cachedLocations, onMarkerClick]);
 

@@ -10,9 +10,6 @@
 import type { LayerType } from './types';
 import { LOOPING_LAYERS } from './types';
 
-/** 日志前缀 */
-const LOG_PREFIX = '[PinDrop Audio]';
-
 /**
  * 循环播放管理器
  *

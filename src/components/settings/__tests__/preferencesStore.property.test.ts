@@ -10,7 +10,6 @@ import fc from 'fast-check';
 import {
   validatePreferences,
   PreferencesStore,
-  PREFERENCES_KEY,
 } from '../preferencesStore';
 import type { UserPreferences, FadeInDuration, MapTheme } from '../types';
 

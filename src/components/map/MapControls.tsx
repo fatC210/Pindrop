@@ -22,9 +22,6 @@ export function MapControls({ map }: MapControlsProps) {
 
     map.on('zoomend', handleZoomEnd);
 
-    // Set initial zoom
-    setZoom(map.getZoom());
-
     return () => {
       map.off('zoomend', handleZoomEnd);
     };

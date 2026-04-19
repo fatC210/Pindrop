@@ -28,10 +28,10 @@ function createMockDB() {
     getAll: vi.fn(async () => {
       return Array.from(store.values());
     }),
-    transaction: vi.fn((_storeName: string, _mode: string) => {
+    transaction: vi.fn(() => {
       return {
         store: {
-          index: (_indexName: string) => ({
+          index: () => ({
             openCursor: async () => {
               // 找到 lastPlayedAt 最小的条目（LRU）
               let oldest: CachedSoundscape | null = null;

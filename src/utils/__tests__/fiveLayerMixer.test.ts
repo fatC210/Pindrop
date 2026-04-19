@@ -12,9 +12,8 @@ import {
   MockAudioContext,
   MockAudioBuffer,
   MockGainNode,
-  MockStereoPannerNode,
 } from './webAudioMock';
-import { ALL_LAYER_TYPES, PANNED_LAYERS, DEFAULT_LAYER_VOLUMES } from '@/utils/audio/types';
+import { ALL_LAYER_TYPES, DEFAULT_LAYER_VOLUMES } from '@/utils/audio/types';
 
 describe('FiveLayerMixer', () => {
   let mixer: FiveLayerMixer;

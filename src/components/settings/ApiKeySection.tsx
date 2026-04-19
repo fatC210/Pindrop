@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 
 import type { VerificationResult } from './types';
 import { validateApiKeyFormat, maskApiKey } from './apiKeyUtils';
-import { storeApiKey, retrieveApiKey } from './preferencesStore';
+import { storeApiKey } from './preferencesStore';
 import { LoadingSpinner } from './LoadingSpinner';
 import './ApiKeySection.css';
 
@@ -29,24 +29,12 @@ export function ApiKeySection({
   verificationResult,
   error,
 }: ApiKeySectionProps): React.JSX.Element {
-  const [isEditing, setIsEditing] = useState<boolean>(!apiKey);
+  const [isEditingOverride, setIsEditingOverride] = useState<boolean | null>(null);
   const [inputValue, setInputValue] = useState<string>('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // 挂载时从 localStorage 加载已存储的 API key
-  useEffect(() => {
-    const stored = retrieveApiKey();
-    if (stored) {
-      onApiKeyChange(stored);
-      setIsEditing(false);
-    } else {
-      setIsEditing(true);
-    }
-    // 仅在挂载时执行
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const isEditing = isEditingOverride ?? !apiKey;
 
   // 清理防抖定时器
   useEffect(() => {
@@ -94,12 +82,12 @@ export function ApiKeySection({
   const handleEditClick = useCallback((): void => {
     if (isEditing) {
       // 退出编辑模式
-      setIsEditing(false);
+      setIsEditingOverride(null);
       setInputValue('');
       setValidationError(null);
     } else {
       // 进入编辑模式
-      setIsEditing(true);
+      setIsEditingOverride(true);
       setInputValue(apiKey);
       // 聚焦输入框
       setTimeout(() => inputRef.current?.focus(), 0);

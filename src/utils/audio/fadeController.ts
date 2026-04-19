@@ -10,9 +10,6 @@
 import type { MixerState } from './types';
 import { FADE_IN_DURATION_S, FADE_OUT_DURATION_S, ALL_LAYER_TYPES } from './types';
 
-/** 日志前缀 */
-const LOG_PREFIX = '[PinDrop Audio]';
-
 /**
  * 淡入淡出控制器
  *

@@ -75,17 +75,14 @@ describe('AudioContextManager', () => {
     });
 
     it('应该在 AudioContext 未创建时输出警告', async () => {
-      const warnSpy = vi.spyOn(console, 'warn');
-      
-      // 创建新的 manager，不调用 getContext()
-      const newManager = new AudioContextManager();
-      
-      // 尝试恢复（但 context 为 null）
-      // 这需要访问私有属性，所以我们只能测试不会抛出错误
-      await expect(async () => {
-        // 无法直接测试，因为 context 是私有的
-      }).not.toThrow();
-      
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await manager.resume();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('AudioContext 尚未创建')
+      );
+
       warnSpy.mockRestore();
     });
   });
@@ -98,7 +95,7 @@ describe('AudioContextManager', () => {
     });
 
     it('应该在 AudioContext 已关闭时安全处理', async () => {
-      const context = manager.getContext();
+      manager.getContext();
       await manager.close();
       
       // 再次关闭应该不会抛出错误

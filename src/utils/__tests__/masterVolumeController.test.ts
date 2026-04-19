@@ -30,9 +30,8 @@ describe('MasterVolumeController', () => {
 
   describe('initialize()', () => {
     it('应该创建 Master GainNode', () => {
-      const gainNode = controller.initialize(mockContext as unknown as AudioContext);
+      controller.initialize(mockContext as unknown as AudioContext);
 
-      expect(gainNode).toBeDefined();
       expect(mockContext.createdGainNodes.length).toBe(1);
     });
 
@@ -44,7 +43,7 @@ describe('MasterVolumeController', () => {
     });
 
     it('应该使用默认音量初始化（无已保存值时）', () => {
-      const gainNode = controller.initialize(mockContext as unknown as AudioContext);
+      controller.initialize(mockContext as unknown as AudioContext);
 
       const createdGainNode = mockContext.createdGainNodes[0];
       // preferencesStore 默认 masterVolume 为 0.8

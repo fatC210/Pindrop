@@ -4,6 +4,7 @@ import { roundCoordinates } from './coordinates';
 interface QueuedRequest {
   lat: number;
   lng: number;
+  requestFn: () => Promise<unknown>;
   resolve: (value: unknown) => void;
   reject: (reason?: unknown) => void;
 }
@@ -24,8 +25,14 @@ class RequestThrottleManager {
     requestFn: () => Promise<T>
   ): Promise<T> {
     return new Promise((resolve, reject) => {
-      this.queue.push({ lat, lng, resolve: resolve as (value: unknown) => void, reject });
-      this.processQueue();
+      this.queue.push({
+        lat,
+        lng,
+        requestFn: requestFn as () => Promise<unknown>,
+        resolve: resolve as (value: unknown) => void,
+        reject,
+      });
+      void this.processQueue();
     });
   }
 
@@ -51,11 +58,9 @@ class RequestThrottleManager {
       if (!request) break;
 
       try {
-        // Execute the request (passed from caller)
-        // Note: This is a simplified version - actual implementation
-        // would need to pass the request function through the queue
         this.lastRequestTime = Date.now();
-        request.resolve(null);
+        const result = await request.requestFn();
+        request.resolve(result);
       } catch (error) {
         request.reject(error);
       }
@@ -76,28 +81,7 @@ export async function throttleNominatimRequest<T>(
   lng: number,
   requestFn: () => Promise<T>
 ): Promise<T> {
-  // For now, implement simple time-based throttling
-  // Queue-based throttling can be added if needed
-  const now = Date.now();
-  const key = 'nominatim_last_request';
-  const lastRequest = parseInt(localStorage.getItem(key) || '0', 10);
-  
-  const timeSinceLastRequest = now - lastRequest;
-  if (timeSinceLastRequest < 1000) {
-    // Wait for remaining time
-    await new Promise((resolve) =>
-      setTimeout(resolve, 1000 - timeSinceLastRequest)
-    );
-  }
-  
-  localStorage.setItem(key, Date.now().toString());
-  return requestFn();
-}
-
-// Cooldown tracking for coordinates
-interface CooldownEntry {
-  timestamp: number;
-  coordinates: string; // Rounded coordinates as key
+  return throttleManager.enqueue(lat, lng, requestFn);
 }
 
 const cooldownMap = new Map<string, number>();
@@ -118,14 +102,14 @@ function generateCooldownKey(lat: number, lng: number): string {
 export function shouldAllowRequest(lat: number, lng: number): boolean {
   const key = generateCooldownKey(lat, lng);
   const lastRequestTime = cooldownMap.get(key);
-  
+
   if (!lastRequestTime) {
     return true;
   }
-  
+
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
-  
+
   return timeSinceLastRequest >= COOLDOWN_PERIOD;
 }
 
@@ -135,7 +119,7 @@ export function shouldAllowRequest(lat: number, lng: number): boolean {
 export function recordRequest(lat: number, lng: number): void {
   const key = generateCooldownKey(lat, lng);
   cooldownMap.set(key, Date.now());
-  
+
   // Clean up old entries (older than cooldown period)
   const now = Date.now();
   for (const [k, timestamp] of cooldownMap.entries()) {

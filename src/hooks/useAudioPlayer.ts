@@ -111,7 +111,7 @@ export function useAudioPlayer(
   const [playbackState, setPlaybackState] = useState<PlaybackStateInfo>(INITIAL_STATE);
 
   // 浏览器是否支持 Web Audio API
-  const [isSupported, setIsSupported] = useState<boolean>(true);
+  const [isSupported] = useState<boolean>(checkWebAudioSupport);
 
   // AudioPlayer 实例（useRef 保持跨渲染稳定）
   const playerRef = useRef<AudioPlayer | null>(null);
@@ -154,15 +154,11 @@ export function useAudioPlayer(
     }
   }, [audioGeneratorFn]);
 
-  // 检测浏览器 Web Audio API 支持
   useEffect(() => {
-    const supported = checkWebAudioSupport();
-    setIsSupported(supported);
-
-    if (!supported) {
+    if (!isSupported) {
       console.warn(`${LOG_PREFIX} useAudioPlayer: 浏览器不支持 Web Audio API`);
     }
-  }, []);
+  }, [isSupported]);
 
   // 组件卸载时销毁 AudioPlayer
   useEffect(() => {

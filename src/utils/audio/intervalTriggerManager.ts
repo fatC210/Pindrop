@@ -8,7 +8,7 @@
  */
 
 import type { LayerType } from './types';
-import { INTERVAL_LAYERS, MAX_CONCURRENT_SOURCE_NODES } from './types';
+import { MAX_CONCURRENT_SOURCE_NODES } from './types';
 import type { FiveLayerMixer } from './fiveLayerMixer';
 import type { FadeController } from './fadeController';
 

@@ -13,6 +13,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { calculateTimezone } from '@/utils/geocoding/timezoneCalculator';
 
+type MutableIntl = {
+  DateTimeFormat: typeof Intl.DateTimeFormat;
+};
+
 describe('TimezoneCalculator Unit Tests', () => {
   // 保存原始的 Date 对象
   let originalDate: typeof Date;
@@ -266,7 +270,8 @@ describe('TimezoneCalculator Unit Tests', () => {
       const mockDateTimeFormat = vi.fn().mockImplementation(() => {
         throw new Error('Invalid timezone');
       });
-      (global.Intl as any).DateTimeFormat = mockDateTimeFormat;
+      (globalThis.Intl as unknown as MutableIntl).DateTimeFormat =
+        mockDateTimeFormat as unknown as typeof Intl.DateTimeFormat;
 
       // Mock console.error 以验证日志
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -298,7 +303,7 @@ describe('TimezoneCalculator Unit Tests', () => {
         expect(result.timeSlot).toBe('day'); // 14:00 应映射到 day
       } finally {
         // 恢复原始的 Intl.DateTimeFormat
-        (global.Intl as any).DateTimeFormat = originalDateTimeFormat;
+        (globalThis.Intl as unknown as MutableIntl).DateTimeFormat = originalDateTimeFormat;
         consoleErrorSpy.mockRestore();
         vi.useRealTimers();
       }
@@ -312,7 +317,8 @@ describe('TimezoneCalculator Unit Tests', () => {
       const mockDateTimeFormat = vi.fn().mockImplementation(() => {
         throw new Error('Invalid timezone');
       });
-      (global.Intl as any).DateTimeFormat = mockDateTimeFormat;
+      (globalThis.Intl as unknown as MutableIntl).DateTimeFormat =
+        mockDateTimeFormat as unknown as typeof Intl.DateTimeFormat;
 
       // Mock console.error 以抑制日志输出
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -338,7 +344,7 @@ describe('TimezoneCalculator Unit Tests', () => {
         });
       } finally {
         // 恢复原始的 Intl.DateTimeFormat
-        (global.Intl as any).DateTimeFormat = originalDateTimeFormat;
+        (globalThis.Intl as unknown as MutableIntl).DateTimeFormat = originalDateTimeFormat;
         consoleErrorSpy.mockRestore();
         vi.useRealTimers();
       }

@@ -9,7 +9,7 @@
 import { describe, it } from 'vitest';
 import fc from 'fast-check';
 import { FiveLayerMixer } from '@/utils/audio/fiveLayerMixer';
-import { MockAudioContext, MockGainNode, MockStereoPannerNode } from './webAudioMock';
+import { MockAudioContext, MockStereoPannerNode } from './webAudioMock';
 import { ALL_LAYER_TYPES, PANNED_LAYERS } from '@/utils/audio/types';
 
 describe('FiveLayerMixer - Property Tests', () => {

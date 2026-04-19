@@ -105,7 +105,11 @@ describe('TerrainInferrer Unit Tests', () => {
         road: 'Coast Road',
       };
 
-      const result = inferTerrain(43.7, 7.25, addressWithCoast as any);
+      const result = inferTerrain(
+        43.7,
+        7.25,
+        addressWithCoast as NominatimResponse['address']
+      );
 
       expect(result.terrain).toBe('coast');
       expect(result.nearWater).toBe('sea');

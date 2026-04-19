@@ -12,7 +12,6 @@ import {
   removeFavorite,
   isFavorite,
   loadFavorites,
-  FAVORITES_KEY,
 } from '../favoritesStore';
 
 // ---------------------------------------------------------------------------

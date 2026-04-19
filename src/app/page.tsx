@@ -4,7 +4,7 @@
 // 集成地图组件、设置面板和设置按钮
 // Requirements: 10.1, 4.3, 4.4, 4.5
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 import dynamic from 'next/dynamic';
 
@@ -29,19 +29,19 @@ export default function Home(): React.JSX.Element {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
   // 地图主题状态，从 localStorage 加载
-  const [currentTheme, setCurrentTheme] = useState<MapTheme>('light');
+  const [currentTheme, setCurrentTheme] = useState<MapTheme>(() => {
+    if (typeof window === 'undefined') {
+      return 'light';
+    }
+
+    return preferencesStore.loadPreferences().mapStyle;
+  });
 
   // 地图加载状态
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // 设置按钮 ref，用于关闭面板后恢复焦点
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
-
-  // 初始化时从 localStorage 加载主题偏好
-  useEffect(() => {
-    const prefs = preferencesStore.loadPreferences();
-    setCurrentTheme(prefs.mapStyle);
-  }, []);
 
   // 打开设置面板
   const handleOpenSettings = useCallback((): void => {

@@ -104,7 +104,7 @@ describe('RegionClassifier Unit Tests', () => {
   });
 
   it('undefined address 应返回 rural 兜底', () => {
-    const result = classifyRegion(undefined as any);
+    const result = classifyRegion(undefined as unknown as NominatimResponse['address']);
 
     expect(result.regionType).toBe('rural');
     expect(result.urbanDensity).toBe(0.05);
