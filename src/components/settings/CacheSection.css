@@ -1,0 +1,94 @@
+/* 缓存管理区域样式 */
+
+.cache-section {
+  padding: 0;
+}
+
+.cache-section__header {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 16px;
+  color: var(--text-primary, #1A1A1A);
+}
+
+.cache-section__stats {
+  margin-bottom: 16px;
+}
+
+.cache-section__stats-text {
+  font-size: 14px;
+  color: var(--text-primary, #1A1A1A);
+}
+
+.cache-section__stats-loading {
+  font-size: 14px;
+  color: var(--text-secondary, #666666);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cache-section__stats-error {
+  font-size: 14px;
+  color: var(--text-secondary, #666666);
+}
+
+.cache-section__clear-button {
+  padding: 8px 16px;
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #FFFFFF;
+  background: #EF4444;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cache-section__clear-button:hover:not(:disabled) {
+  background: #DC2626;
+}
+
+.cache-section__clear-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cache-section__clear-button:focus-visible {
+  outline: 2px solid #EF4444;
+  outline-offset: 2px;
+}
+
+.cache-section__message {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.cache-section__message--success {
+  color: #22C55E;
+}
+
+.cache-section__message--error {
+  color: #EF4444;
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .cache-section__header {
+    color: var(--text-primary, #FFFFFF);
+  }
+
+  .cache-section__stats-text {
+    color: var(--text-primary, #FFFFFF);
+  }
+
+  .cache-section__stats-loading {
+    color: var(--text-secondary, #A0A0A0);
+  }
+
+  .cache-section__stats-error {
+    color: var(--text-secondary, #A0A0A0);
+  }
+}

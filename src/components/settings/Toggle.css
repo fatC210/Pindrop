@@ -1,0 +1,58 @@
+/* Toggle 开关组件样式 */
+
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  min-width: 44px;
+  min-height: 24px;
+  padding: 0;
+  border: none;
+  background: var(--border, #E5E5E5);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  /* 确保最小触摸目标 44px */
+  touch-action: manipulation;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent, #3B82F6);
+  outline-offset: 2px;
+}
+
+.toggle--checked {
+  background: var(--accent, #3B82F6);
+}
+
+.toggle--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #FFFFFF;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  pointer-events: none;
+}
+
+.toggle--checked .toggle__thumb {
+  transform: translateX(20px);
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .toggle {
+    background: var(--border, #404040);
+  }
+
+  .toggle--checked {
+    background: var(--accent, #60A5FA);
+  }
+}

@@ -24,3 +24,50 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* -----------------------------------------------------------------------
+   应用容器 & 设置按钮
+   Requirements: 10.1
+   ----------------------------------------------------------------------- */
+
+.app-container {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.settings-trigger-button {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border, #e5e5e5);
+  border-radius: 8px;
+  background: var(--bg-primary, #ffffff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settings-trigger-button:hover {
+  background: var(--bg-secondary, #f5f5f5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+}
+
+.settings-trigger-button:focus-visible {
+  outline: 2px solid var(--accent, #3b82f6);
+  outline-offset: 2px;
+}
+
+.settings-trigger-button:active {
+  transform: scale(0.95);
+}

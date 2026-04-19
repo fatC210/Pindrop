@@ -10,6 +10,9 @@ export interface NominatimResponse {
     country?: string;
     state?: string;
     county?: string;
+    suburb?: string;       // 用于 city_suburb 分类
+    hamlet?: string;       // 用于 village 降级
+    country_code?: string; // 用于语言映射
   };
 }
 

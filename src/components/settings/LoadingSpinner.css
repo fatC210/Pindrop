@@ -1,0 +1,59 @@
+/* 加载动画样式 */
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-spinner {
+  border-style: solid;
+  border-color: var(--border, #E5E5E5);
+  border-top-color: var(--accent, #3B82F6);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+/* 尺寸变体 */
+.loading-spinner--small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.loading-spinner--medium {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.loading-spinner--large {
+  width: 36px;
+  height: 36px;
+  border-width: 4px;
+}
+
+/* 屏幕阅读器专用文本 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .loading-spinner {
+    border-color: var(--border, #404040);
+    border-top-color: var(--accent, #60A5FA);
+  }
+}

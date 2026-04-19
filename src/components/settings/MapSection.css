@@ -1,0 +1,104 @@
+/* 地图主题选择区域样式 */
+
+.map-section {
+  padding: 0;
+}
+
+.map-section__header {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 16px;
+  color: var(--text-primary, #1A1A1A);
+}
+
+.map-section__setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.map-section__label {
+  font-size: 14px;
+  color: var(--text-primary, #1A1A1A);
+}
+
+.map-section__theme-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.map-section__theme-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #1A1A1A);
+  background: var(--bg-secondary, #F5F5F5);
+  border: 1px solid var(--border, #E5E5E5);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.map-section__theme-option:hover {
+  border-color: var(--accent, #3B82F6);
+}
+
+.map-section__theme-option:focus-visible {
+  outline: 2px solid var(--accent, #3B82F6);
+  outline-offset: 2px;
+}
+
+.map-section__theme-option--active {
+  background: var(--accent, #3B82F6);
+  border-color: var(--accent, #3B82F6);
+  color: #FFFFFF;
+}
+
+.map-section__theme-option--active:hover {
+  border-color: var(--accent, #3B82F6);
+}
+
+.map-section__theme-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.map-section__theme-label {
+  line-height: 1;
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .map-section__header {
+    color: var(--text-primary, #FFFFFF);
+  }
+
+  .map-section__label {
+    color: var(--text-primary, #FFFFFF);
+  }
+
+  .map-section__theme-option {
+    color: var(--text-primary, #FFFFFF);
+    background: var(--bg-secondary, #2A2A2A);
+    border-color: var(--border, #404040);
+  }
+
+  .map-section__theme-option:hover {
+    border-color: var(--accent, #60A5FA);
+  }
+
+  .map-section__theme-option--active {
+    background: var(--accent, #60A5FA);
+    border-color: var(--accent, #60A5FA);
+    color: #1A1A1A;
+  }
+
+  .map-section__theme-option--active:hover {
+    border-color: var(--accent, #60A5FA);
+  }
+}

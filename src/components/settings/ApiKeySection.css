@@ -1,0 +1,188 @@
+/* API Key 管理区域样式 */
+
+.api-key-section {
+  padding: 0;
+}
+
+.api-key-section__header {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 16px;
+  color: var(--text-primary, #1A1A1A);
+}
+
+.api-key-section__input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.api-key-section__input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.api-key-section__input {
+  width: 100%;
+  padding: 8px 12px;
+  min-height: 44px;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-primary, #1A1A1A);
+  background: var(--bg-secondary, #F5F5F5);
+  border: 1px solid var(--border, #E5E5E5);
+  border-radius: 4px;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.api-key-section__input:focus {
+  outline: none;
+  border-color: var(--accent, #3B82F6);
+}
+
+.api-key-section__input--invalid {
+  border-color: #EF4444;
+}
+
+.api-key-section__input--invalid:focus {
+  border-color: #EF4444;
+}
+
+.api-key-section__masked {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  padding: 8px 12px;
+  min-height: 44px;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-secondary, #666666);
+  background: var(--bg-secondary, #F5F5F5);
+  border: 1px solid var(--border, #E5E5E5);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.api-key-section__edit-button {
+  padding: 8px 12px;
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent, #3B82F6);
+  background: transparent;
+  border: 1px solid var(--accent, #3B82F6);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.api-key-section__edit-button:hover {
+  background: var(--accent, #3B82F6);
+  color: #FFFFFF;
+}
+
+.api-key-section__edit-button:focus-visible {
+  outline: 2px solid var(--accent, #3B82F6);
+  outline-offset: 2px;
+}
+
+.api-key-section__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.api-key-section__verify-button {
+  padding: 8px 16px;
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #FFFFFF;
+  background: var(--accent, #3B82F6);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.api-key-section__verify-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.api-key-section__verify-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.api-key-section__verify-button:focus-visible {
+  outline: 2px solid var(--accent, #3B82F6);
+  outline-offset: 2px;
+}
+
+.api-key-section__error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #EF4444;
+}
+
+.api-key-section__error-icon {
+  flex-shrink: 0;
+}
+
+.api-key-section__verification-result {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.api-key-section__verification-result--success {
+  color: #22C55E;
+}
+
+.api-key-section__verification-result--failure {
+  color: #EF4444;
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .api-key-section__header {
+    color: var(--text-primary, #FFFFFF);
+  }
+
+  .api-key-section__input {
+    color: var(--text-primary, #FFFFFF);
+    background: var(--bg-secondary, #2A2A2A);
+    border-color: var(--border, #404040);
+  }
+
+  .api-key-section__masked {
+    color: var(--text-secondary, #A0A0A0);
+    background: var(--bg-secondary, #2A2A2A);
+    border-color: var(--border, #404040);
+  }
+
+  .api-key-section__edit-button {
+    color: var(--accent, #60A5FA);
+    border-color: var(--accent, #60A5FA);
+  }
+
+  .api-key-section__edit-button:hover {
+    background: var(--accent, #60A5FA);
+    color: #1A1A1A;
+  }
+
+  .api-key-section__verify-button {
+    background: var(--accent, #60A5FA);
+    color: #1A1A1A;
+  }
+}

@@ -15,6 +15,41 @@ import {
 } from '../timeSlot';
 
 describe('Time Slot Utilities - Property Tests', () => {
+  // Feature: 04-time-system, Property 1: getTimeSlot 小时映射完备性
+  // Validates: Requirements 1.2, 1.3, 1.4, 1.5, 1.6, 1.7
+  describe('Property 1: getTimeSlot 小时映射完备性', () => {
+    test('对任意整数输入返回有效 TimeSlot，且规范化后的小时与返回的 TimeSlot 满足映射关系', () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: -100, max: 100 }),
+          (hour) => {
+            // 调用 getTimeSlot 获取时间档
+            const slot = getTimeSlot(hour);
+
+            // 验证返回值是有效的 TimeSlot
+            expect(['dawn', 'day', 'dusk', 'night']).toContain(slot);
+
+            // 规范化小时到 [0, 23] 范围
+            const normalizedHour = ((hour % 24) + 24) % 24;
+
+            // 验证规范化后的小时与返回的 TimeSlot 满足映射关系
+            if (normalizedHour >= 5 && normalizedHour <= 8) {
+              expect(slot).toBe('dawn');
+            } else if (normalizedHour >= 9 && normalizedHour <= 16) {
+              expect(slot).toBe('day');
+            } else if (normalizedHour >= 17 && normalizedHour <= 19) {
+              expect(slot).toBe('dusk');
+            } else {
+              // normalizedHour >= 20 || normalizedHour <= 4
+              expect(slot).toBe('night');
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+  });
+
   // Feature: 01-map-interaction, Property 3: Cache Key Format Consistency
   // Validates: Requirements 8.3, 8.4
   describe('Property 3: Cache Key Format Consistency', () => {

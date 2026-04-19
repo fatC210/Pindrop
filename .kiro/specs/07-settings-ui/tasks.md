@@ -17,7 +17,7 @@ The implementation follows a layered approach: core utilities and data models fi
   - Create validation result types
   - _Requirements: 11.2, 11.5_
 
-- [ ] 2. Implement API key validation and masking utilities
+- [x] 2. Implement API key validation and masking utilities
   - [x] 2.1 Create API key format validation function
     - Write `validateApiKeyFormat(apiKey: string)` function
     - Implement regex validation for `xi-[a-zA-Z0-9]{32}` pattern
@@ -52,15 +52,15 @@ The implementation follows a layered approach: core utilities and data models fi
     - **Validates: Requirements 3.2**
     - Test that error messages never contain actual API key value
 
-- [ ] 3. Implement preferences store and localStorage management
-  - [ ] 3.1 Create default preferences constant
+- [x] 3. Implement preferences store and localStorage management
+  - [x] 3.1 Create default preferences constant
     - Define DEFAULT_PREFERENCES object with all default values
     - Set mapStyle: 'light', autoPlay: true, fadeInDuration: 1.5
     - Set dynamicEvents: true, masterVolume: 0.8
     - Define default layer volumes
     - _Requirements: 11.6_
   
-  - [~] 3.2 Create preferences validation function
+  - [x] 3.2 Create preferences validation function
     - Write `validatePreferences(preferences: unknown)` function
     - Validate all fields exist and have correct types
     - Validate value ranges (volumes 0-1, fadeInDuration in valid set)
@@ -77,7 +77,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - **Validates: Requirements 11.6**
     - Test that invalid values are replaced with defaults
   
-  - [~] 3.5 Create PreferencesStore class
+  - [x] 3.5 Create PreferencesStore class
     - Implement `loadPreferences()` method reading from localStorage
     - Implement `savePreferences(preferences)` method writing to localStorage
     - Implement `isLocalStorageAvailable()` check
@@ -85,7 +85,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Use PREFERENCES_KEY constant 'pindrop_preferences'
     - _Requirements: 11.1, 11.2, 11.3, 11.4_
   
-  - [~] 3.6 Create API key storage functions
+  - [x] 3.6 Create API key storage functions
     - Write `storeApiKey(apiKey: string)` function
     - Write `retrieveApiKey()` function
     - Write `clearApiKey()` function
@@ -93,8 +93,8 @@ The implementation follows a layered approach: core utilities and data models fi
     - Never log API key to console
     - _Requirements: 1.5, 3.1, 3.3_
 
-- [ ] 4. Implement cache statistics and management utilities
-  - [~] 4.1 Create cache size calculation function
+- [x] 4. Implement cache statistics and management utilities
+  - [x] 4.1 Create cache size calculation function
     - Write `calculateTotalSizeMB(blobSizes: number[])` function
     - Sum all blob sizes in bytes
     - Convert to MB with formula: bytes / (1024 * 1024)
@@ -107,7 +107,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - **Validates: Requirements 8.2**
     - Test accuracy and non-negative result
   
-  - [~] 4.3 Create cache statistics formatting function
+  - [x] 4.3 Create cache statistics formatting function
     - Write `formatCacheStats(stats: CacheStatistics)` function
     - Return string in format "{count} soundscapes · {size} MB"
     - Handle null/undefined stats gracefully
@@ -118,7 +118,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - **Validates: Requirements 8.3**
     - Test format consistency for all valid inputs
   
-  - [~] 4.5 Create cache statistics calculator
+  - [x] 4.5 Create cache statistics calculator
     - Write `calculateCacheStatistics()` async function
     - Query IndexedDB soundscape_cache store
     - Count total soundscapes
@@ -127,7 +127,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Return CacheStatistics object
     - _Requirements: 8.1, 8.2, 8.5_
   
-  - [~] 4.6 Create cache clearing function
+  - [x] 4.6 Create cache clearing function
     - Write `clearAllCaches()` async function
     - Clear soundscape_cache object store
     - Clear geocode_cache object store
@@ -135,14 +135,14 @@ The implementation follows a layered approach: core utilities and data models fi
     - Handle IndexedDB errors gracefully
     - _Requirements: 9.2, 9.3, 9.4, 9.5_
 
-- [~] 5. Checkpoint - Ensure all utility tests pass
+- [x] 5. Checkpoint - Ensure all utility tests pass
   - Run unit tests for validation, masking, and cache utilities
   - Run property-based tests (minimum 100 iterations each)
   - Verify all core functions work correctly
   - Ensure all tests pass, ask the user if questions arise
 
-- [ ] 6. Implement base UI components
-  - [~] 6.1 Create Toggle component
+- [x] 6. Implement base UI components
+  - [x] 6.1 Create Toggle component
     - Build reusable toggle switch component
     - Implement checked/unchecked states
     - Add keyboard support (Space/Enter to toggle)
@@ -150,7 +150,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Add ARIA attributes (role="switch", aria-checked)
     - _Requirements: 5.1, 5.3, 7.1, 7.3_
   
-  - [~] 6.2 Create ConfirmationDialog component
+  - [x] 6.2 Create ConfirmationDialog component
     - Build modal dialog with overlay
     - Accept title, message, onConfirm, onCancel props
     - Implement focus trap within dialog
@@ -159,7 +159,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Add ARIA attributes (role="dialog", aria-modal)
     - _Requirements: 9.2_
   
-  - [~] 6.3 Create LoadingSpinner component
+  - [x] 6.3 Create LoadingSpinner component
     - Build spinning loader animation
     - Use CSS animation from design system
     - Accept size prop (small, medium, large)
@@ -171,8 +171,8 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test ConfirmationDialog show/hide
     - Test ConfirmationDialog callbacks
 
-- [ ] 7. Implement ApiKeySection component
-  - [~] 7.1 Create ApiKeyInput sub-component
+- [x] 7. Implement ApiKeySection component
+  - [x] 7.1 Create ApiKeyInput sub-component
     - Build input field with password type
     - Implement controlled input with value/onChange
     - Add edit button to toggle between masked display and input
@@ -180,7 +180,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Apply input styles from design system
     - _Requirements: 1.1, 1.7_
   
-  - [~] 7.2 Implement API key validation UI
+  - [x] 7.2 Implement API key validation UI
     - Add debounced validation on input change (500ms delay)
     - Display inline error message for invalid format
     - Show error icon and red border on invalid input
@@ -188,7 +188,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Disable "Verify Key" button when format invalid
     - _Requirements: 1.4, 14.1, 14.2, 14.4_
   
-  - [~] 7.3 Implement API key verification UI
+  - [x] 7.3 Implement API key verification UI
     - Add "Verify Key" button next to input
     - Show loading spinner during verification
     - Display success indicator "✅ Key valid" on success
@@ -196,7 +196,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Handle network errors gracefully
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
   
-  - [~] 7.4 Wire ApiKeySection to storage
+  - [x] 7.4 Wire ApiKeySection to storage
     - Load stored API key on mount
     - Save API key to localStorage on change
     - Display masked version when not editing
@@ -209,8 +209,8 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test verification success/failure
     - Test localStorage integration
 
-- [ ] 8. Implement MapSection component
-  - [~] 8.1 Create ThemeSelector sub-component
+- [x] 8. Implement MapSection component
+  - [x] 8.1 Create ThemeSelector sub-component
     - Build theme option buttons (Light/Dark)
     - Display theme icons (☀️/🌙) and labels
     - Highlight active theme with accent color
@@ -218,13 +218,13 @@ The implementation follows a layered approach: core utilities and data models fi
     - Add ARIA attributes (aria-pressed for active state)
     - _Requirements: 4.1, 4.2_
   
-  - [~] 8.2 Implement theme change handler
+  - [x] 8.2 Implement theme change handler
     - Update preferences state on theme selection
     - Save to localStorage immediately
     - Notify parent component via onThemeChange callback
     - _Requirements: 4.2, 4.3_
   
-  - [~] 8.3 Load saved theme on mount
+  - [x] 8.3 Load saved theme on mount
     - Read theme from preferences store
     - Apply saved theme to UI
     - Default to 'light' if no preference saved
@@ -236,15 +236,15 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test parent callback invocation
     - Test default theme loading
 
-- [ ] 9. Implement PlaybackSection component
-  - [~] 9.1 Create playback preference controls
+- [x] 9. Implement PlaybackSection component
+  - [x] 9.1 Create playback preference controls
     - Add AutoPlayToggle with label "Auto-play: Play immediately after click"
     - Add FadeInSelector dropdown with options [0.5s, 1.0s, 1.5s, 2.0s, 3.0s]
     - Add DynamicEventsToggle with label "Dynamic events: Random ambient sound effects"
     - Apply section styles from design system
     - _Requirements: 5.1, 5.2, 6.1, 6.2, 7.1, 7.2_
   
-  - [~] 9.2 Implement preference change handlers
+  - [x] 9.2 Implement preference change handlers
     - Handle auto-play toggle change
     - Handle fade-in duration selection change
     - Handle dynamic events toggle change
@@ -252,7 +252,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Save to localStorage on each change
     - _Requirements: 5.2, 6.2, 7.2_
   
-  - [~] 9.3 Load saved preferences on mount
+  - [x] 9.3 Load saved preferences on mount
     - Read all playback preferences from store
     - Apply to UI controls
     - Use defaults if no preferences saved
@@ -263,8 +263,8 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test preferences persistence
     - Test default value loading
 
-- [ ] 10. Implement CacheSection component
-  - [~] 10.1 Create CacheStatistics display
+- [x] 10. Implement CacheSection component
+  - [x] 10.1 Create CacheStatistics display
     - Show loading state while calculating statistics
     - Display formatted statistics "{count} soundscapes · {size} MB"
     - Show "Cache unavailable" if IndexedDB unavailable
@@ -272,14 +272,14 @@ The implementation follows a layered approach: core utilities and data models fi
     - Apply statistics display styles
     - _Requirements: 8.1, 8.3, 8.4, 8.6_
   
-  - [~] 10.2 Create ClearCacheButton sub-component
+  - [x] 10.2 Create ClearCacheButton sub-component
     - Build "Clear All Cache" button with destructive styling
     - Disable button when cache is empty or unavailable
     - Show "Clearing..." text during operation
     - Apply clear cache button styles from design system
     - _Requirements: 9.1_
   
-  - [~] 10.3 Implement cache clearing flow
+  - [x] 10.3 Implement cache clearing flow
     - Show confirmation dialog on button click
     - Display message "Clear all cached soundscapes? This cannot be undone."
     - Call clearAllCaches() on confirmation
@@ -294,8 +294,8 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test cache clearing success/failure
     - Test statistics refresh after clear
 
-- [ ] 11. Implement AboutSection component
-  - [~] 11.1 Create about information display
+- [x] 11. Implement AboutSection component
+  - [x] 11.1 Create about information display
     - Display application name "PinDrop"
     - Display version number from package.json
     - Display attribution text "ElevenLabs · Leaflet · Next.js"
@@ -303,8 +303,8 @@ The implementation follows a layered approach: core utilities and data models fi
     - Apply about section styles from design system
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
 
-- [ ] 12. Implement main SettingsPanel component
-  - [~] 12.1 Create panel layout structure
+- [x] 12. Implement main SettingsPanel component
+  - [x] 12.1 Create panel layout structure
     - Build overlay with click-to-close functionality
     - Build panel container with fixed width (480px desktop, 100vw mobile)
     - Add panel header with close button
@@ -313,7 +313,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Make panel scrollable when content exceeds viewport
     - _Requirements: 10.1, 10.2, 10.4, 10.5, 10.6, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
   
-  - [~] 12.2 Implement panel state management
+  - [x] 12.2 Implement panel state management
     - Create state for isOpen, apiKey, preferences, cacheStats
     - Create state for loading/error states
     - Implement open/close handlers
@@ -321,14 +321,14 @@ The implementation follows a layered approach: core utilities and data models fi
     - Implement close button handler
     - _Requirements: 10.3, 10.4, 10.5_
   
-  - [~] 12.3 Implement preferences loading and saving
+  - [x] 12.3 Implement preferences loading and saving
     - Load all preferences from PreferencesStore on mount
     - Save preferences immediately on any change
     - Handle localStorage unavailable gracefully
     - Show warning "Settings cannot be saved" if storage unavailable
     - _Requirements: 11.1, 11.2, 11.3, 11.4_
   
-  - [~] 12.4 Implement error handling and feedback
+  - [x] 12.4 Implement error handling and feedback
     - Show error messages for localStorage unavailable
     - Show error messages for IndexedDB unavailable
     - Show error messages for API key verification failures
@@ -343,21 +343,21 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test error handling
     - Test localStorage unavailable scenario
 
-- [ ] 13. Implement responsive layout and styling
-  - [~] 13.1 Create responsive CSS for settings panel
+- [x] 13. Implement responsive layout and styling
+  - [x] 13.1 Create responsive CSS for settings panel
     - Desktop (≥768px): 480px centered panel with border radius
     - Mobile (<768px): full-screen panel without border radius
     - Apply max-height 90vh with scrolling
     - Apply box shadow on desktop
     - _Requirements: 15.1, 15.2, 15.3_
   
-  - [~] 13.2 Ensure touch-friendly controls on mobile
+  - [x] 13.2 Ensure touch-friendly controls on mobile
     - Minimum 44px touch target size for all interactive elements
     - Adequate spacing between controls
     - Readable text size on all screen sizes
     - _Requirements: 15.4_
   
-  - [~] 13.3 Implement panel animations
+  - [x] 13.3 Implement panel animations
     - Add slide-in animation on open (0.2s ease-out)
     - Add slide-out animation on close (0.2s ease-in)
     - Add fade-in animation for overlay
@@ -370,8 +370,8 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test on mobile viewport (375x667)
     - Verify all controls accessible and readable
 
-- [ ] 14. Implement accessibility features
-  - [~] 14.1 Add ARIA labels and roles
+- [x] 14. Implement accessibility features
+  - [x] 14.1 Add ARIA labels and roles
     - Add role="dialog" and aria-modal="true" to panel
     - Add aria-labelledby to all sections
     - Add aria-describedby to inputs with descriptions
@@ -380,21 +380,21 @@ The implementation follows a layered approach: core utilities and data models fi
     - Add aria-live regions for dynamic content
     - _Requirements: 10.6, 14.1, 14.2, 14.3, 14.4_
   
-  - [~] 14.2 Implement keyboard navigation
+  - [x] 14.2 Implement keyboard navigation
     - Tab/Shift+Tab to navigate between controls
     - Enter/Space to activate buttons and toggles
     - Escape to close settings panel
     - Arrow keys for theme selector navigation
     - _Requirements: 10.4, 10.5_
   
-  - [~] 14.3 Implement focus management
+  - [x] 14.3 Implement focus management
     - Focus first focusable element on panel open
     - Trap focus within panel (Tab wraps around)
     - Restore focus to trigger button on close
     - Ensure all interactive elements are keyboard accessible
     - _Requirements: 10.4, 10.5_
   
-  - [~] 14.4 Add screen reader announcements
+  - [x] 14.4 Add screen reader announcements
     - Announce panel open/close
     - Announce validation errors
     - Announce verification success/failure
@@ -409,28 +409,28 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test focus trap behavior
     - Test all ARIA announcements
 
-- [~] 15. Checkpoint - Ensure all UI component tests pass
+- [x] 15. Checkpoint - Ensure all UI component tests pass
   - Run unit tests for all React components
   - Verify all interactions work correctly
   - Test error handling scenarios
   - Ensure all tests pass, ask the user if questions arise
 
-- [ ] 16. Implement integration with parent application
-  - [~] 16.1 Create settings button in navigation
+- [x] 16. Implement integration with parent application
+  - [x] 16.1 Create settings button in navigation
     - Add settings button (⚙️ icon) to top navigation bar
     - Position in top-right corner
     - Apply button styles from design system
     - Add onClick handler to open settings panel
     - _Requirements: 10.1_
   
-  - [~] 16.2 Wire theme changes to map component
+  - [x] 16.2 Wire theme changes to map component
     - Pass onThemeChange callback to SettingsPanel
     - Update map tile layer when theme changes
     - Apply theme within 500ms of selection
     - Persist theme preference to localStorage
     - _Requirements: 4.3, 4.4, 4.5_
   
-  - [~] 16.3 Wire preferences to audio player
+  - [x] 16.3 Wire preferences to audio player
     - Read preferences from PreferencesStore in audio player
     - Apply autoPlay setting to playback behavior
     - Apply fadeInDuration to audio fade-in
@@ -438,7 +438,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Update audio player when preferences change
     - _Requirements: 5.2, 5.4, 6.2, 6.4, 7.2, 7.4_
   
-  - [~] 16.4 Integrate API key with ElevenLabs calls
+  - [x] 16.4 Integrate API key with ElevenLabs calls
     - Read API key from localStorage in API proxy
     - Include x-elevenlabs-api-key header in all requests
     - Show "API Key required" error if key missing
@@ -452,26 +452,26 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test cache clearing flow
     - Test preferences persistence across sessions
 
-- [ ] 17. Implement performance optimizations
-  - [~] 17.1 Add debouncing for API key validation
+- [x] 17. Implement performance optimizations
+  - [x] 17.1 Add debouncing for API key validation
     - Debounce validation by 500ms after user stops typing
     - Cancel pending validation on unmount
     - Use useMemo for debounced function
     - _Requirements: 14.2_
   
-  - [~] 17.2 Add throttling for preferences save
+  - [x] 17.2 Add throttling for preferences save
     - Throttle localStorage writes to max 1 per second
     - Ensure final value is always saved
     - Use useMemo for throttled function
     - _Requirements: 11.1_
   
-  - [~] 17.3 Add memoization for expensive calculations
+  - [x] 17.3 Add memoization for expensive calculations
     - Memoize maskApiKey result
     - Memoize formatCacheStats result
     - Memoize validation results
     - Use useMemo and useCallback appropriately
   
-  - [~] 17.4 Implement lazy loading for cache statistics
+  - [x] 17.4 Implement lazy loading for cache statistics
     - Only load statistics when CacheSection becomes visible
     - Use intersection observer or visibility check
     - Cache results until panel closes
@@ -483,28 +483,28 @@ The implementation follows a layered approach: core utilities and data models fi
     - Verify memoization prevents unnecessary recalculations
     - Measure render performance with React DevTools
 
-- [ ] 18. Final integration and polish
-  - [~] 18.1 Add loading states for all async operations
+- [x] 18. Final integration and polish
+  - [x] 18.1 Add loading states for all async operations
     - Show spinner during API key verification
     - Show spinner during cache statistics loading
     - Show spinner during cache clearing
     - Disable controls during async operations
     - _Requirements: 2.2, 8.4, 9.7_
   
-  - [~] 18.2 Add success/error feedback animations
+  - [x] 18.2 Add success/error feedback animations
     - Animate success checkmark on verification success
     - Animate error shake on validation failure
     - Fade in/out toast notifications
     - Apply animations from design system
   
-  - [~] 18.3 Implement graceful degradation
+  - [x] 18.3 Implement graceful degradation
     - Handle localStorage unavailable scenario
     - Handle IndexedDB unavailable scenario
     - Continue functioning with reduced features
     - Show appropriate warnings to user
     - _Requirements: 11.4, 8.6_
   
-  - [~] 18.4 Add comprehensive error logging
+  - [x] 18.4 Add comprehensive error logging
     - Log all errors to console with context
     - Include timestamp, error type, and relevant data
     - Never log sensitive data (API keys)
@@ -516,7 +516,7 @@ The implementation follows a layered approach: core utilities and data models fi
     - Test persistence across browser sessions
     - Test with different viewport sizes
 
-- [~] 19. Final checkpoint - Comprehensive testing
+- [x] 19. Final checkpoint - Comprehensive testing
   - Run all unit tests and property-based tests
   - Run integration tests with parent application
   - Test all error scenarios manually

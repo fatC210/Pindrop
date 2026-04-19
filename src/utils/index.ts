@@ -28,3 +28,21 @@ export {
   shouldAllowRequest,
   recordRequest,
 } from './throttle';
+export { getApiKeyHeader, hasApiKey } from './apiHeaders';
+export type { ApiKeyHeader } from './apiHeaders';
+export {
+  FAVORITES_KEY,
+  loadFavorites,
+  saveFavorites,
+  addFavorite,
+  removeFavorite,
+  isFavorite,
+  getFavoritesCount,
+} from './favoritesStore';
+export {
+  addLocationHistory,
+  getLocationHistory,
+  getHistoryBySoundscapeId,
+  clearLocationHistory,
+} from './locationHistory';
+export type { LocationHistoryEntry } from './locationHistory';

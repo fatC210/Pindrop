@@ -1,65 +1,107 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+// PinDrop 主页面
+// 集成地图组件、设置面板和设置按钮
+// Requirements: 10.1, 4.3, 4.4, 4.5
+
+import { useState, useCallback, useRef, useEffect } from 'react';
+
+import dynamic from 'next/dynamic';
+
+import type { MapTheme } from '@/components/settings/types';
+import { SettingsPanel } from '@/components/settings';
+import { preferencesStore } from '@/components/settings/preferencesStore';
+
+// 动态导入 MapView 以避免 SSR 问题（Leaflet 需要 window 对象）
+const MapView = dynamic(
+  () => import('@/components/map/MapView').then((mod) => ({ default: mod.MapView })),
+  { ssr: false },
+);
+
+/**
+ * 应用主页面。
+ *
+ * 渲染全屏地图、右上角设置按钮和设置面板覆盖层。
+ * 管理设置面板的打开/关闭状态和地图主题状态。
+ */
+export default function Home(): React.JSX.Element {
+  // 设置面板打开/关闭状态
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+
+  // 地图主题状态，从 localStorage 加载
+  const [currentTheme, setCurrentTheme] = useState<MapTheme>('light');
+
+  // 地图加载状态
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // 设置按钮 ref，用于关闭面板后恢复焦点
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+
+  // 初始化时从 localStorage 加载主题偏好
+  useEffect(() => {
+    const prefs = preferencesStore.loadPreferences();
+    setCurrentTheme(prefs.mapStyle);
+  }, []);
+
+  // 打开设置面板
+  const handleOpenSettings = useCallback((): void => {
+    setIsSettingsOpen(true);
+  }, []);
+
+  // 关闭设置面板
+  const handleCloseSettings = useCallback((): void => {
+    setIsSettingsOpen(false);
+    // 恢复焦点到设置按钮
+    setTimeout(() => {
+      settingsButtonRef.current?.focus();
+    }, 0);
+  }, []);
+
+  // 主题切换回调，传递给 SettingsPanel
+  // SettingsPanel 内部已处理 localStorage 持久化
+  const handleThemeChange = useCallback((theme: MapTheme): void => {
+    setCurrentTheme(theme);
+  }, []);
+
+  // 地图坐标选择回调（暂时仅记录日志，后续集成音景生成）
+  const handleCoordinateSelect = useCallback((lat: number, lng: number): void => {
+    setIsLoading(true);
+    // TODO: 集成音景生成流程
+    console.log(`[PinDrop] 坐标选择: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    // 模拟加载完成
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
+  }, []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="app-container">
+      {/* 全屏地图 */}
+      <MapView
+        onCoordinateSelect={handleCoordinateSelect}
+        theme={currentTheme}
+        isLoading={isLoading}
+      />
+
+      {/* 设置按钮 - 右上角固定定位 */}
+      <button
+        ref={settingsButtonRef}
+        type="button"
+        className="settings-trigger-button"
+        onClick={handleOpenSettings}
+        aria-label="Open settings"
+        title="Settings"
+      >
+        ⚙️
+      </button>
+
+      {/* 设置面板覆盖层 */}
+      <SettingsPanel
+        isOpen={isSettingsOpen}
+        onClose={handleCloseSettings}
+        onThemeChange={handleThemeChange}
+        currentTheme={currentTheme}
+      />
     </div>
   );
 }
