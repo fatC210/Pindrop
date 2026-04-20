@@ -140,7 +140,7 @@ export function generateRecipe(context: LocationContext): SoundscapeRecipe {
   // 7b: 构建 Signature 层
   let signature;
   try {
-    signature = buildSignatureLayer(template, timeInterpolation);
+    signature = buildSignatureLayer(template, timeInterpolation, context);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[PinDrop Error] LayerBuilder: Failed to build signature: ${message}`);

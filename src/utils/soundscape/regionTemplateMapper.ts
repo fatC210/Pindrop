@@ -18,13 +18,13 @@ export const REGION_TEMPLATES: Record<RegionType, SoundscapeTemplate> = {
   // 城市中心 — 高密度城市环境
   city_center: {
     ambientPrompt:
-      'Urban ambient: steady traffic hum, distant siren, pedestrian noise, {weather} sound',
+      'dense city ambience with layered foot traffic, restrained vehicle wash, storefront activity, and weather shaped by {weather}',
     signaturePool: [
-      'street_musician',
-      'market_vendor',
-      'construction',
-      'tram_bell',
-      'cafe_chatter',
+      'a nearby shop door chime and a few seconds of lived-in sidewalk motion',
+      'a market-side exchange heard briefly from the edge of the street',
+      'delivery handling or handcart movement caught in passing',
+      'a tram or streetcar bell heard naturally in the distance',
+      'cups and low cafe conversation spilling out of a doorway',
     ],
     dialogueTopics: [
       'greeting',
@@ -33,28 +33,28 @@ export const REGION_TEMPLATES: Record<RegionType, SoundscapeTemplate> = {
       'small_talk',
       'phone_call',
     ],
-    atmosphereStyle: 'lo-fi urban ambient, minimal, {culture} influence',
+    atmosphereStyle: 'minimal urban atmosphere with {culture} influence',
     dynamicEventPool: [
       'scooter_pass',
       'car_horn',
       'bicycle_bell',
-      'coin_drop',
-      'street_musician',
+      'shop_door_chime',
+      'cups_on_counter',
     ],
   },
 
   // 城市郊区 — 安静的住宅区环境
   city_suburb: {
     ambientPrompt:
-      'Quiet residential street ambient, occasional car, dog barking, {weather} sound',
+      'quiet residential street ambience with occasional passing cars, distant household activity, and weather shaped by {weather}',
     signaturePool: [
-      'lawn_mower',
-      'ice_cream_truck',
-      'school_bell',
-      'neighbor_greeting',
+      'a lawn mower or yard tool heard from a few houses away',
+      'a neighborhood van or truck moving through the block',
+      'a distant school bell or pickup-time cue carried by the air',
+      'a short greeting between neighbors near a gate or driveway',
     ],
     dialogueTopics: ['neighbor_chat', 'dog_walking', 'coming_home'],
-    atmosphereStyle: 'gentle ambient, suburban peaceful, {culture} influence',
+    atmosphereStyle: 'gentle suburban atmosphere with {culture} influence',
     dynamicEventPool: [
       'lawn_mower_distant',
       'dog_bark',
@@ -67,15 +67,15 @@ export const REGION_TEMPLATES: Record<RegionType, SoundscapeTemplate> = {
   // 小镇 — 稀疏交通，自然声为主
   town: {
     ambientPrompt:
-      'Small town ambient, sparse traffic, birds, wind, {weather} sound',
+      'small-town ambience with sparse traffic, open air, scattered voices, and weather shaped by {weather}',
     signaturePool: [
-      'church_bell',
-      'market_bell',
-      'local_announcement',
-      'train_whistle',
+      'a distant church or civic bell marking the hour',
+      'a market bell or stall signal from the town center',
+      'a brief local announcement or public-address fragment',
+      'a train whistle carrying in from the edge of town',
     ],
     dialogueTopics: ['greeting', 'local_news', 'weather_comment'],
-    atmosphereStyle: 'minimal ambient, small town feel, {culture} influence',
+    atmosphereStyle: 'minimal small-town atmosphere with {culture} influence',
     dynamicEventPool: [
       'church_bell_distant',
       'bicycle_pass',
@@ -87,15 +87,15 @@ export const REGION_TEMPLATES: Record<RegionType, SoundscapeTemplate> = {
   // 乡村 — 极少人类活动，自然声主导
   village: {
     ambientPrompt:
-      'Rural village ambient, very sparse human activity, nature dominant, {weather} sound',
+      'rural village ambience with close domestic life, nature dominant, and weather shaped by {weather}',
     signaturePool: [
-      'rooster',
-      'temple_bell',
-      'well_bucket',
-      'children_playing',
+      'a rooster or domestic bird sounding from within the village',
+      'a temple or village bell heard softly over the homes',
+      'a bucket, hand pump, or courtyard water task caught nearby',
+      'children playing briefly between houses',
     ],
     dialogueTopics: ['greeting', 'farming_talk', 'seasonal_comment'],
-    atmosphereStyle: 'very sparse ambient, rural, {culture} influence',
+    atmosphereStyle: 'very sparse village atmosphere with {culture} influence',
     dynamicEventPool: [
       'rooster_crow',
       'goat_bleat',
@@ -107,12 +107,12 @@ export const REGION_TEMPLATES: Record<RegionType, SoundscapeTemplate> = {
   // 田野 — 开阔的乡村景观，无对话
   rural: {
     ambientPrompt:
-      'Open rural landscape, wind, insects, distant animals, {weather} sound',
+      'open rural landscape with wind, insects, distant animals, and weather shaped by {weather}',
     signaturePool: [
-      'tractor_distant',
-      'cow_bell',
-      'sheep_bleating',
-      'river_trickle',
+      'a tractor or farm utility vehicle working far from the listener',
+      'a single cow bell or livestock tag carrying across the field',
+      'sheep or goats sounding softly in the distance',
+      'a narrow stream or irrigation water moving through the land',
     ],
     dialogueTopics: [],
     atmosphereStyle: 'nature soundscape, very minimal, spacious',
@@ -127,12 +127,12 @@ export const REGION_TEMPLATES: Record<RegionType, SoundscapeTemplate> = {
   // 荒野 — 偏远自然环境，无对话
   wilderness: {
     ambientPrompt:
-      'Remote wilderness, wind, birds, natural silence, {weather} sound',
+      'remote wilderness with wind, birds, long natural quiet, and weather shaped by {weather}',
     signaturePool: [
-      'eagle_cry',
-      'wolf_howl',
-      'stream',
-      'crackling_twigs',
+      'one distant raptor call carried through the landscape',
+      'a remote animal call echoing far away',
+      'a stream cutting through otherwise quiet terrain',
+      'twigs or brush cracking under natural movement',
     ],
     dialogueTopics: [],
     atmosphereStyle: 'wilderness soundscape, very sparse, ancient feel',
@@ -147,12 +147,12 @@ export const REGION_TEMPLATES: Record<RegionType, SoundscapeTemplate> = {
   // 海洋 — 海浪、风、远处船引擎
   ocean: {
     ambientPrompt:
-      'Ocean waves rolling steadily, wind over water, distant ship engine',
+      'coastal or open-ocean ambience with steady wave motion, wind over water, and distant marine traffic',
     signaturePool: [
-      'ship_horn',
-      'buoy_bell',
-      'fishing_boat',
-      'ferry_arrival',
+      'a ship horn sounding softly across the water',
+      'a buoy bell or harbor marker ringing in the swell',
+      'a fishing boat engine passing at moderate distance',
+      'a ferry arriving or departing beyond the immediate shoreline',
     ],
     dialogueTopics: ['fisherman_chat', 'harbor_master'],
     atmosphereStyle: 'ocean soundscape, peaceful, vast',
@@ -167,12 +167,12 @@ export const REGION_TEMPLATES: Record<RegionType, SoundscapeTemplate> = {
   // 极地 — 极端寒冷环境，无对话
   polar: {
     ambientPrompt:
-      'Arctic wind, ice cracking, absolute quiet between gusts',
+      'polar ambience with arctic wind, ice textures, and long quiet between gusts',
     signaturePool: [
-      'ice_crack',
-      'aurora_hum',
-      'polar_bird',
-      'whale_blow',
+      'a brief ice crack carrying through frozen air',
+      'wind moving over the ice shelf with a tonal edge',
+      'a distant polar bird cutting through the quiet',
+      'a whale blow or marine exhale if open water is plausible',
     ],
     dialogueTopics: [],
     atmosphereStyle: 'polar soundscape, extreme minimal, crystalline',

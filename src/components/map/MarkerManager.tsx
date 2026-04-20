@@ -1,78 +1,95 @@
 'use client';
 
-// Marker manager for rendering cached location markers
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { CachedSoundscape } from '@/utils/soundscapeCache';
 import './MapMarker.css';
+
+export interface MarkerDescriptor {
+  id: string;
+  cacheKey: string | null;
+  coordinates: [number, number];
+  isGenerating: boolean;
+  isSelectable: boolean;
+}
 
 export interface MarkerManagerProps {
   map: L.Map | null;
-  cachedLocations: CachedSoundscape[];
+  markers: MarkerDescriptor[];
   onMarkerClick: (cacheKey: string) => void;
+}
+
+function createMarkerIcon(marker: MarkerDescriptor): L.DivIcon {
+  const interactiveClassName = marker.isSelectable ? ' map-pin-marker--interactive' : '';
+  const generatingClassName = marker.isGenerating ? ' map-pin-marker--generating' : '';
+
+  return L.divIcon({
+    className: `map-pin-marker${interactiveClassName}${generatingClassName}`,
+    html: `
+      <div class="map-pin-marker__inner">
+        <span class="map-pin-marker__pulse" aria-hidden="true"></span>
+        <span class="map-pin-marker__emoji" aria-hidden="true">📍</span>
+      </div>
+    `,
+    iconSize: [34, 46],
+    iconAnchor: [17, 42],
+  });
 }
 
 export function MarkerManager({
   map,
-  cachedLocations,
+  markers,
   onMarkerClick,
 }: MarkerManagerProps) {
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
 
   useEffect(() => {
-    if (!map) return;
+    if (!map) {
+      return;
+    }
 
-    const markers = markersRef.current;
+    const renderedMarkers = markersRef.current;
+    const nextIds = new Set(markers.map((marker) => marker.id));
 
-    // Get current marker keys
-    const currentKeys = new Set(cachedLocations.map((loc) => loc.id));
-    const existingKeys = new Set(markers.keys());
+    for (const [markerId, existingMarker] of renderedMarkers.entries()) {
+      if (!nextIds.has(markerId)) {
+        map.removeLayer(existingMarker);
+        renderedMarkers.delete(markerId);
+      }
+    }
 
-    // Remove markers that no longer exist in cache
-    for (const key of existingKeys) {
-      if (!currentKeys.has(key)) {
-        const marker = markers.get(key);
-        if (marker) {
-          map.removeLayer(marker);
-          markers.delete(key);
+    for (const marker of markers) {
+      const existingMarker = renderedMarkers.get(marker.id);
+      const icon = createMarkerIcon(marker);
+
+      if (existingMarker) {
+        existingMarker.setLatLng(marker.coordinates);
+        existingMarker.setIcon(icon);
+        existingMarker.off('click');
+        if (marker.isSelectable && marker.cacheKey) {
+          existingMarker.on('click', () => {
+            onMarkerClick(marker.cacheKey as string);
+          });
         }
+        continue;
       }
+
+      const leafletMarker = L.marker(marker.coordinates, { icon });
+      if (marker.isSelectable && marker.cacheKey) {
+        leafletMarker.on('click', () => {
+          onMarkerClick(marker.cacheKey as string);
+        });
+      }
+      leafletMarker.addTo(map);
+      renderedMarkers.set(marker.id, leafletMarker);
     }
 
-    // Add or update markers
-    for (const location of cachedLocations) {
-      const existingMarker = markers.get(location.id);
-
-      if (!existingMarker) {
-        // Create new marker
-        const icon = L.divIcon({
-          className: `cached-marker ${location.timeSlot}`,
-          html: '',
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
-        });
-
-        const marker = L.marker(location.coordinates, { icon });
-        
-        // Add click handler
-        marker.on('click', () => {
-          onMarkerClick(location.id);
-        });
-
-        // Add to map
-        marker.addTo(map);
-        markers.set(location.id, marker);
-      }
-    }
-
-    // Cleanup
-    return () => {
-      for (const marker of markers.values()) {
+    return (): void => {
+      for (const marker of renderedMarkers.values()) {
         map.removeLayer(marker);
       }
-      markers.clear();
+      renderedMarkers.clear();
     };
-  }, [map, cachedLocations, onMarkerClick]);
+  }, [map, markers, onMarkerClick]);
 
-  return null; // This component doesn't render anything directly
+  return null;
 }

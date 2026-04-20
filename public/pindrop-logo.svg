@@ -1,60 +1,51 @@
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  width="136"
+  width="96"
   height="96"
-  viewBox="0 0 136 96"
+  viewBox="0 0 96 96"
   fill="none"
   role="img"
   aria-labelledby="pindropLogoTitle pindropLogoDesc"
 >
   <title id="pindropLogoTitle">PinDrop logo</title>
-  <desc id="pindropLogoDesc">
-    A map pin with concentric audio ripples.
-  </desc>
+  <desc id="pindropLogoDesc">A red map pin inspired by the pin emoji.</desc>
   <defs>
-    <linearGradient id="pinGradient" x1="23" y1="10" x2="89" y2="86" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#62B4FF" />
-      <stop offset="0.52" stop-color="#0C5AD6" />
-      <stop offset="1" stop-color="#16325A" />
+    <radialGradient id="logoGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(48 32) rotate(90) scale(42)">
+      <stop offset="0" stop-color="#F7B293" stop-opacity="0.42" />
+      <stop offset="1" stop-color="#F7B293" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="logoPinFill" x1="29" y1="14" x2="66" y2="78" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF9B72" />
+      <stop offset="0.45" stop-color="#CF4500" />
+      <stop offset="1" stop-color="#7A2100" />
     </linearGradient>
-    <linearGradient id="haloGradient" x1="8" y1="8" x2="92" y2="92" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#A7D8FF" />
-      <stop offset="1" stop-color="#DCEEFF" />
+    <linearGradient id="logoPinCore" x1="38" y1="23" x2="58" y2="49" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE6DA" />
+      <stop offset="1" stop-color="#FFF7F3" />
     </linearGradient>
-    <linearGradient id="waveGradient" x1="78" y1="18" x2="128" y2="72" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#C6E3FF" />
-      <stop offset="1" stop-color="#7DB9FF" />
-    </linearGradient>
+    <filter id="logoShadow" x="13" y="8" width="70" height="82" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix" />
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+      <feOffset dy="6" />
+      <feGaussianBlur stdDeviation="5" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0.478431 0 0 0 0 0.129412 0 0 0 0 0 0 0 0 0.18 0" />
+      <feBlend in2="BackgroundImageFix" mode="normal" result="effect1_dropShadow_1_2" />
+      <feBlend in="SourceGraphic" in2="effect1_dropShadow_1_2" mode="normal" result="shape" />
+    </filter>
   </defs>
-  <g transform="translate(8 8)">
-    <circle cx="48" cy="48" r="40" fill="url(#haloGradient)" opacity="0.32" />
+  <circle cx="48" cy="40" r="34" fill="url(#logoGlow)" />
+  <g filter="url(#logoShadow)">
     <path
-      d="M48 4C29.222 4 14 19.222 14 38c0 23.276 29.049 49.215 32.34 52.094a2.8 2.8 0 0 0 3.32 0C52.95 87.215 82 61.276 82 38 82 19.222 66.778 4 48 4Z"
-      fill="url(#pinGradient)"
+      d="M48 10C31.431 10 18 23.431 18 40c0 20.335 23.682 41.61 27.264 44.712a4 4 0 0 0 5.472 0C54.318 81.61 78 60.335 78 40 78 23.431 64.569 10 48 10Z"
+      fill="url(#logoPinFill)"
     />
-    <circle cx="48" cy="38" r="16.5" stroke="#EEF7FF" stroke-width="3.4" opacity="0.95" />
-    <circle cx="48" cy="38" r="8.6" stroke="#EEF7FF" stroke-width="3.4" opacity="0.88" />
-    <circle cx="48" cy="38" r="3.6" fill="#EEF7FF" />
+    <circle cx="48" cy="39" r="16" fill="url(#logoPinCore)" />
+    <circle cx="48" cy="39" r="7" fill="#CF4500" />
+    <ellipse cx="41.5" cy="25.5" rx="9.5" ry="7" fill="#FFF4EE" opacity="0.42" />
     <path
-      d="M83 22c10.5 1.7 19.1 7 25.5 15.7"
-      stroke="url(#waveGradient)"
-      stroke-width="4"
-      stroke-linecap="round"
-      opacity="0.9"
-    />
-    <path
-      d="M86 34.5c14.3 2.1 26.2 9.4 34.7 21.3"
-      stroke="url(#waveGradient)"
-      stroke-width="4"
-      stroke-linecap="round"
-      opacity="0.76"
-    />
-    <path
-      d="M89 48c15.6 2.1 29.3 9.4 40.4 21.8"
-      stroke="url(#waveGradient)"
-      stroke-width="4"
-      stroke-linecap="round"
-      opacity="0.58"
+      d="M48 84c7.4-6.4 22.2-21.9 27-38.4C71.3 55 61.4 65.7 48 76.4 34.6 65.7 24.7 55 21 45.6 25.8 62.1 40.6 77.6 48 84Z"
+      fill="#8F2800"
+      opacity="0.28"
     />
   </g>
 </svg>

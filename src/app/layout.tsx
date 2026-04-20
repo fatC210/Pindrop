@@ -1,12 +1,12 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist_Mono, Sofia_Sans } from 'next/font/google';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import { getMessages } from '@/i18n/messages';
 import { DEFAULT_LOCALE } from '@/i18n/types';
 import './globals.css';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sofiaSans = Sofia_Sans({
+  variable: "--font-sofia-sans",
   subsets: ["latin"],
 });
 
@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html
       lang={DEFAULT_LOCALE}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${sofiaSans.variable} ${geistMono.variable} h-full antialiased`}
       style={{ colorScheme: 'light' }}
     >
       <body className="min-h-full flex flex-col">

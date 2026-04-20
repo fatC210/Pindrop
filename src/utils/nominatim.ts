@@ -1,39 +1,51 @@
 // Nominatim reverse geocoding API client
+import type { AppLocale } from '@/i18n/types';
 import { GeocodingResult, getCachedGeocode, cacheGeocode } from './geocodeCache';
+import { extractPlaceHierarchy, type PlaceAddress } from './placeHierarchy';
 
 export interface NominatimResponse {
   display_name: string;
-  address: {
-    city?: string;
-    town?: string;
-    village?: string;
-    country?: string;
-    state?: string;
-    county?: string;
-    suburb?: string;       // 用于 city_suburb 分类
-    hamlet?: string;       // 用于 village 降级
+  address: PlaceAddress & {
     country_code?: string; // 用于语言映射
   };
 }
 
 const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
 const REQUEST_TIMEOUT = 3000; // 3 seconds
+const localizedPlaceNameCache = new Map<string, Promise<LocalizedPlaceName | null>>();
 
-/**
- * Reverse geocode coordinates using Nominatim API
- * Includes 3-second timeout and required User-Agent header
- */
-export async function reverseGeocode(
+export interface LocalizedPlaceName {
+  cityName: string;
+  regionName?: string;
+  countryName: string;
+}
+
+function buildReverseGeocodeUrl(
   lat: number,
-  lng: number
+  lng: number,
+  acceptLanguage: string
+): string {
+  return `${NOMINATIM_BASE_URL}/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=${encodeURIComponent(acceptLanguage)}`;
+}
+
+function getUnknownLocationLabel(locale: AppLocale): string {
+  return locale === 'zh-CN' ? '未知地点' : 'Unknown Location';
+}
+
+function getUnknownCountryLabel(locale: AppLocale): string {
+  return locale === 'zh-CN' ? '未知国家' : 'Unknown Country';
+}
+
+async function requestReverseGeocode(
+  lat: number,
+  lng: number,
+  acceptLanguage: string
 ): Promise<NominatimResponse | null> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
   try {
-    const url = `${NOMINATIM_BASE_URL}/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`;
-    
-    const response = await fetch(url, {
+    const response = await fetch(buildReverseGeocodeUrl(lat, lng, acceptLanguage), {
       signal: controller.signal,
       headers: {
         'User-Agent': 'PinDrop/1.0 (https://github.com/pindrop/pindrop)',
@@ -51,15 +63,56 @@ export async function reverseGeocode(
     return data as NominatimResponse;
   } catch (error) {
     clearTimeout(timeoutId);
-    
+
     if (error instanceof Error && error.name === 'AbortError') {
       console.log('[PinDrop] Nominatim request timed out after 3s');
     } else {
       console.error('[PinDrop Error] Nominatim request failed:', error);
     }
-    
+
     return null;
   }
+}
+
+/**
+ * Reverse geocode coordinates using Nominatim API
+ * Includes 3-second timeout and required User-Agent header
+ */
+export async function reverseGeocode(
+  lat: number,
+  lng: number
+): Promise<NominatimResponse | null> {
+  return requestReverseGeocode(lat, lng, 'en');
+}
+
+export async function getLocalizedPlaceName(
+  lat: number,
+  lng: number,
+  locale: AppLocale
+): Promise<LocalizedPlaceName | null> {
+  if (locale === 'en') {
+    return null;
+  }
+
+  const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}:${locale}`;
+  const cachedRequest = localizedPlaceNameCache.get(cacheKey);
+  if (cachedRequest) {
+    return cachedRequest;
+  }
+
+  const request = requestReverseGeocode(lat, lng, locale).then((response) => {
+    if (!response) {
+      return null;
+    }
+
+    return extractPlaceHierarchy(response.address || {}, {
+      unknownLocationLabel: getUnknownLocationLabel(locale),
+      unknownCountryLabel: getUnknownCountryLabel(locale),
+    });
+  });
+
+  localizedPlaceNameCache.set(cacheKey, request);
+  return request;
 }
 
 /**
@@ -72,13 +125,11 @@ export function extractGeocodingInfo(
   lng: number
 ): GeocodingResult {
   const address = response.address || {};
-  
-  // Extract city name with fallbacks
-  const cityName = address.city || address.town || address.village || 'Unknown Location';
-  
-  // Extract country name
-  const countryName = address.country || 'Unknown Country';
-  
+  const placeHierarchy = extractPlaceHierarchy(address, {
+    unknownLocationLabel: 'Unknown Location',
+    unknownCountryLabel: 'Unknown Country',
+  });
+
   // Extract administrative region
   const administrativeRegion = address.state || address.county || '';
   
@@ -89,8 +140,8 @@ export function extractGeocodingInfo(
   const language = 'en';
   
   return {
-    cityName,
-    countryName,
+    cityName: placeHierarchy.cityName,
+    countryName: placeHierarchy.countryName,
     administrativeRegion,
     timezone,
     language,

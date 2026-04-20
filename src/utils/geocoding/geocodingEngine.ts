@@ -14,6 +14,7 @@ import {
   getCachedLocationContext,
   cacheLocationContext,
 } from '@/utils/geocodeCache';
+import { extractPlaceHierarchy } from '@/utils/placeHierarchy';
 import { classifyRegion } from './regionClassifier';
 import { getLanguageInfo } from './languageMapper';
 import { calculateTimezone } from './timezoneCalculator';
@@ -52,11 +53,10 @@ export function buildLocationContext(
   lng: number
 ): LocationContext {
   const address = response.address || {};
-
-  // 提取基础地理信息
-  const cityName =
-    address.city || address.town || address.village || 'Unknown Location';
-  const countryName = address.country || 'Unknown';
+  const placeHierarchy = extractPlaceHierarchy(address, {
+    unknownLocationLabel: 'Unknown Location',
+    unknownCountryLabel: 'Unknown',
+  });
 
   // 推断器集群调用（带错误处理）
   let regionClassification;
@@ -69,7 +69,7 @@ export function buildLocationContext(
 
   let languageInfo;
   try {
-    languageInfo = getLanguageInfo(countryName);
+    languageInfo = getLanguageInfo(placeHierarchy.countryName);
   } catch (error) {
     console.error('[PinDrop Error] LanguageMapper:', error);
     languageInfo = {
@@ -81,7 +81,7 @@ export function buildLocationContext(
 
   let timezoneInfo;
   try {
-    timezoneInfo = calculateTimezone(countryName, lat, lng);
+    timezoneInfo = calculateTimezone(placeHierarchy.countryName, lat, lng);
   } catch (error) {
     console.error('[PinDrop Error] TimezoneCalculator:', error);
     const now = new Date();
@@ -111,7 +111,7 @@ export function buildLocationContext(
 
   let cultureInfo;
   try {
-    cultureInfo = inferCulture(countryName);
+    cultureInfo = inferCulture(placeHierarchy.countryName);
   } catch (error) {
     console.error('[PinDrop Error] CultureInferrer:', error);
     cultureInfo = { cultureRegion: 'unknown', dominantReligion: 'none' };
@@ -119,7 +119,7 @@ export function buildLocationContext(
 
   let economicLevel;
   try {
-    economicLevel = inferEconomicLevel(countryName);
+    economicLevel = inferEconomicLevel(placeHierarchy.countryName);
   } catch (error) {
     console.error('[PinDrop Error] EconomyInferrer:', error);
     economicLevel = 0.5;
@@ -128,8 +128,9 @@ export function buildLocationContext(
   // 构建完整 LocationContext
   return {
     // 基础地理
-    cityName,
-    countryName,
+    cityName: placeHierarchy.cityName,
+    regionName: placeHierarchy.regionName,
+    countryName: placeHierarchy.countryName,
     regionType: regionClassification.regionType,
     coordinates: [lat, lng],
 

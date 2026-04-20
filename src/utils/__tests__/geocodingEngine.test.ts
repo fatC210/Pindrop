@@ -229,6 +229,7 @@ describe('GeocodingEngine Unit Tests', () => {
 
       // 基础地理
       expect(context.cityName).toBe('Paris');
+      expect(context.regionName).toBeUndefined();
       expect(context.countryName).toBe('France');
       expect(context.regionType).toBe('city_center');
       expect(context.coordinates).toEqual([48.86, 2.35]);

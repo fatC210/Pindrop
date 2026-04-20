@@ -3,7 +3,7 @@
 // API Key 管理区域组件
 // 处理 API key 输入、失焦保存、显示/隐藏和远程验证
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 3.1, 3.3, 3.6
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import { useI18n } from '@/i18n/I18nProvider';
 import type { ApiKeyErrorCode, VerificationResult } from './types';
@@ -19,6 +19,7 @@ export interface ApiKeySectionProps {
   isVerifying: boolean;
   verificationResult: VerificationResult | null;
   error: ApiKeyErrorCode | null;
+  compact?: boolean;
 }
 
 interface PendingApiKeyCommit {
@@ -34,6 +35,7 @@ export function ApiKeySection({
   isVerifying,
   verificationResult,
   error,
+  compact = false,
 }: ApiKeySectionProps): React.JSX.Element {
   const { messages } = useI18n();
   const [draftValue, setDraftValue] = useState<string | null>(null);
@@ -49,11 +51,7 @@ export function ApiKeySection({
   const inputValue = draftValue ?? pendingInputValue ?? apiKey;
   const hasInputValue = normalizeApiKey(inputValue).length > 0;
 
-  useEffect(() => {
-    if (!hasInputValue) {
-      setIsApiKeyVisible(false);
-    }
-  }, [hasInputValue]);
+  const isApiKeyVisibleInInput = hasInputValue && isApiKeyVisible;
 
   // 处理输入变化，只更新草稿值并隐藏旧的错误/验证结果
   const handleInputChange = useCallback(
@@ -125,14 +123,17 @@ export function ApiKeySection({
   const visibleVerificationResult = !displayError && !hasLocalChanges ? verificationResult : null;
 
   return (
-    <section className="api-key-section" aria-labelledby="api-key-section-header">
+    <section
+      className={`api-key-section${compact ? ' api-key-section--compact' : ''}`}
+      aria-labelledby="api-key-section-header"
+    >
       <h3 id="api-key-section-header" className="api-key-section__header">
         {messages.settings.sections.apiKey.header}
       </h3>
 
       <div className="api-key-section__input-wrapper">
         <input
-          type={hasInputValue && isApiKeyVisible ? 'text' : 'password'}
+          type={isApiKeyVisibleInInput ? 'text' : 'password'}
           className={`api-key-section__input${validationError ? ' api-key-section__input--invalid' : ''}`}
           value={inputValue}
           onChange={handleInputChange}
@@ -152,19 +153,19 @@ export function ApiKeySection({
               event.preventDefault();
             }}
             onClick={handleVisibilityToggle}
-            aria-pressed={isApiKeyVisible}
-            aria-label={
-              isApiKeyVisible
-                ? messages.settings.sections.apiKey.hide
-                : messages.settings.sections.apiKey.show
-            }
-            title={
-              isApiKeyVisible
-                ? messages.settings.sections.apiKey.hide
-                : messages.settings.sections.apiKey.show
-            }
-          >
-            {isApiKeyVisible ? (
+              aria-pressed={isApiKeyVisibleInInput}
+              aria-label={
+                isApiKeyVisibleInInput
+                  ? messages.settings.sections.apiKey.hide
+                  : messages.settings.sections.apiKey.show
+              }
+              title={
+                isApiKeyVisibleInInput
+                  ? messages.settings.sections.apiKey.hide
+                  : messages.settings.sections.apiKey.show
+              }
+            >
+            {isApiKeyVisibleInInput ? (
               <svg
                 className="api-key-section__visibility-icon"
                 viewBox="0 0 24 24"

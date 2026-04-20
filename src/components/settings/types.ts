@@ -1,6 +1,7 @@
 // Type definitions for the Settings UI module
 // Requirements: 11.2, 11.5
 
+import type { RefObject } from 'react';
 import type { AppLocale } from '@/i18n/types';
 
 // ---------------------------------------------------------------------------
@@ -180,4 +181,5 @@ export interface SettingsAction {
 export interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  anchorRef?: RefObject<HTMLElement | null>;
 }

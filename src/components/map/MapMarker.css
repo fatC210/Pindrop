@@ -1,67 +1,72 @@
-/* Pulsing marker animation for cached locations */
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.8;
-  }
-  50% {
-    transform: scale(1.3);
-    opacity: 0.4;
-  }
+.map-pin-marker {
+  background: transparent;
+  border: 0;
 }
 
-.cached-marker {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  position: absolute;
-  animation: pulse 2s ease-in-out infinite;
-  z-index: 1000;
-  will-change: transform, opacity;
+.map-pin-marker__inner {
+  position: relative;
+  width: 34px;
+  height: 46px;
+  display: grid;
+  place-items: end center;
+}
+
+.map-pin-marker__emoji {
+  position: relative;
+  z-index: 2;
+  display: block;
+  font-size: 34px;
+  line-height: 1;
+  filter: drop-shadow(0 10px 14px rgba(23, 37, 84, 0.22));
+  transform-origin: center bottom;
+}
+
+.map-pin-marker--interactive {
   cursor: pointer;
-  border: 2px solid white;
 }
 
-.cached-marker.dawn {
-  background-color: #FFA500;
-  box-shadow: 0 0 10px rgba(255, 165, 0, 0.6);
+.map-pin-marker--interactive .map-pin-marker__emoji {
+  transition: transform 0.18s ease;
 }
 
-.cached-marker.day {
-  background-color: #22C55E;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.6);
+.map-pin-marker--interactive:hover .map-pin-marker__emoji {
+  transform: translateY(-2px) scale(1.04);
 }
 
-.cached-marker.dusk {
-  background-color: #FBBF24;
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+.map-pin-marker__pulse {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: rgba(37, 99, 235, 0.22);
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.42);
+  opacity: 0;
 }
 
-.cached-marker.night {
-  background-color: #3B82F6;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+.map-pin-marker--generating .map-pin-marker__pulse {
+  animation: pinPulse 1.4s ease-out infinite;
+  opacity: 1;
 }
 
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .cached-marker {
-    border-width: 3px;
-    box-shadow: 0 0 0 2px var(--bg-primary, white);
+@keyframes pinPulse {
+  0% {
+    transform: translateX(-50%) scale(0.75);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.48);
+    opacity: 0.95;
   }
 
-  .cached-marker.dawn {
-    background-color: #FF8C00;
+  70% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 0 0 12px rgba(37, 99, 235, 0);
+    opacity: 0.24;
   }
 
-  .cached-marker.day {
-    background-color: #00AA00;
-  }
-
-  .cached-marker.dusk {
-    background-color: #FFD700;
-  }
-
-  .cached-marker.night {
-    background-color: #0066FF;
+  100% {
+    transform: translateX(-50%) scale(1);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+    opacity: 0;
   }
 }

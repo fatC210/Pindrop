@@ -277,10 +277,27 @@ describe('generateRecipe', () => {
     expect(recipe.layers.ambient.prompt).not.toContain('{weather}');
   });
 
+  it('ambient.prompt 应包含地点信息和本地日常声音线索', () => {
+    const recipe = generateRecipe(PARIS_CONTEXT);
+
+    expect(recipe.layers.ambient.prompt).toContain('Paris');
+    expect(recipe.layers.ambient.prompt).toContain('France');
+    expect(recipe.layers.ambient.prompt).toContain('everyday local life');
+    expect(recipe.layers.ambient.prompt).toContain('Avoid cinematic stingers');
+  });
+
   it('atmosphere.prompt 不应包含 {culture} 占位符', () => {
     const recipe = generateRecipe(PARIS_CONTEXT);
 
     expect(recipe.layers.atmosphere.prompt).not.toContain('{culture}');
+  });
+
+  it('signature.prompt 应是完整的本地声音描述而不是抽象标签', () => {
+    const recipe = generateRecipe(PARIS_CONTEXT);
+
+    expect(recipe.layers.signature.prompt).toContain('Paris');
+    expect(recipe.layers.signature.prompt).not.toBe('street_musician');
+    expect(recipe.layers.signature.prompt).toContain('everyday sound');
   });
 
   // --- 无对话区域静默规则 ---

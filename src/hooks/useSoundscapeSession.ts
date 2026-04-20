@@ -33,31 +33,13 @@ import {
   updatePlayStats,
 } from '@/utils/soundscapeCache';
 import { addLocationHistory } from '@/utils/locationHistory';
-import {
-  addFavorite,
-  isFavorite,
-  loadFavorites,
-  removeFavorite,
-} from '@/utils/favoritesStore';
 import { generateCacheKey } from '@/utils/cacheKey';
 import { hasApiKey } from '@/utils/apiHeaders';
+import type { TimeSlot } from '@/utils/timeSlot';
+import { getSoundSummary } from '@/utils/soundscape/sceneNarrative';
 
 type SessionStatus = 'idle' | 'loading' | 'ready' | 'error';
-
-type SessionStatusMessageKey =
-  | 'idleLocation'
-  | 'currentLocation'
-  | 'apiKeyRequiredStatus'
-  | 'generating'
-  | 'generationFailed'
-  | 'readyToPlay'
-  | 'cacheMissingStatus';
-
-type SessionErrorMessageKey =
-  | 'apiKeyRequiredError'
-  | 'noAudioLayers'
-  | 'cacheMissing'
-  | null;
+type GenerationJobStatus = 'resolving' | 'generating' | 'error';
 
 const INITIAL_PLAYBACK_STATE: PlaybackStateInfo = {
   state: 'idle',
@@ -66,6 +48,48 @@ const INITIAL_PLAYBACK_STATE: PlaybackStateInfo = {
   failedLayers: [],
   errorMessage: null,
 };
+
+interface GenerationJob {
+  id: string;
+  coordinateToken: string;
+  coordinates: [number, number];
+  cacheKey: string | null;
+  cityName: string | null;
+  regionName: string | null;
+  countryName: string | null;
+  timeSlot: TimeSlot | null;
+  createdAt: number;
+  progress: number;
+  status: GenerationJobStatus;
+  errorMessage: string | null;
+  locationContext: LocationContext | null;
+}
+
+export interface SessionLocationEntry {
+  id: string;
+  cacheKey: string | null;
+  coordinates: [number, number];
+  cityName: string;
+  regionName?: string;
+  countryName: string;
+  timeSlot: TimeSlot | null;
+  createdAt: number;
+  progress: number;
+  status: 'loading' | 'ready' | 'error';
+  statusLabel: string;
+  errorMessage: string | null;
+  isPlayable: boolean;
+  sceneDescription?: string;
+  soundDescription?: string;
+}
+
+export interface SessionMapPin {
+  id: string;
+  cacheKey: string | null;
+  coordinates: [number, number];
+  isGenerating: boolean;
+  isSelectable: boolean;
+}
 
 function createDefaultPreferences(): UserPreferences {
   return preferencesStore.getDefaultPreferences();
@@ -107,32 +131,61 @@ function isWithinPreviewWindow(
   );
 }
 
+function sortCachedLocations(entries: CachedSoundscape[]): CachedSoundscape[] {
+  return [...entries].sort((left, right) => right.generatedAt - left.generatedAt);
+}
+
+function upsertCachedLocation(
+  entries: CachedSoundscape[],
+  nextEntry: CachedSoundscape
+): CachedSoundscape[] {
+  const remaining = entries.filter((entry) => entry.id !== nextEntry.id);
+  return sortCachedLocations([nextEntry, ...remaining]);
+}
+
+function createCoordinateToken(lat: number, lng: number): string {
+  return `${lat.toFixed(4)},${lng.toFixed(4)}`;
+}
+
+function formatCoordinateFallback([lat, lng]: [number, number]): string {
+  return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+}
+
+function createGenerationJob(lat: number, lng: number): GenerationJob {
+  return {
+    id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    coordinateToken: createCoordinateToken(lat, lng),
+    coordinates: [lat, lng],
+    cacheKey: null,
+    cityName: null,
+    regionName: null,
+    countryName: null,
+    timeSlot: null,
+    createdAt: Date.now(),
+    progress: 8,
+    status: 'resolving',
+    errorMessage: null,
+    locationContext: null,
+  };
+}
+
 export interface UseSoundscapeSessionResult {
   status: SessionStatus;
-  statusMessage: string;
-  errorMessage: string | null;
-  currentLocation: LocationContext | null;
-  currentRecipe: SoundscapeRecipe | null;
-  currentCacheKey: string | null;
-  currentAudioBlobs: AudioBlobMap | null;
-  sceneDescription: string;
-  locationLabel: string;
+  locationEntries: SessionLocationEntry[];
+  mapPins: SessionMapPin[];
   cachedMarkers: CachedSoundscape[];
-  favoriteEntries: CachedSoundscape[];
-  favoriteIds: string[];
-  isCurrentFavorite: boolean;
   hasConfiguredApiKey: boolean | null;
+  hasActiveGeneration: boolean;
   preferences: UserPreferences;
   playbackState: PlaybackStateInfo;
+  activePlaybackLocationId: string | null;
   isAudioSupported: boolean | null;
   handleCoordinateSelect: (lat: number, lng: number) => Promise<void>;
   handleMarkerSelect: (cacheKey: string) => Promise<void>;
-  handleFavoriteSelect: (cacheKey: string) => Promise<void>;
+  handleLocationSelect: (cacheKey: string) => Promise<void>;
   handleHoverPreview: (lat: number, lng: number) => Promise<void>;
   handleHoverEnd: () => void;
-  regenerateCurrent: () => Promise<void>;
-  toggleFavoriteForCurrent: () => void;
-  playCurrent: () => Promise<void>;
+  playLocation: (cacheKey: string) => Promise<void>;
   pausePlayback: () => void;
   resumePlayback: () => void;
   stopPlayback: () => void;
@@ -141,21 +194,14 @@ export interface UseSoundscapeSessionResult {
 }
 
 export function useSoundscapeSession(): UseSoundscapeSessionResult {
-  const { messages } = useI18n();
-  const [status, setStatus] = useState<SessionStatus>('idle');
-  const [statusMessageKey, setStatusMessageKey] =
-    useState<SessionStatusMessageKey>('idleLocation');
-  const [errorMessageKey, setErrorMessageKey] =
-    useState<SessionErrorMessageKey>(null);
-  const [currentLocation, setCurrentLocation] = useState<LocationContext | null>(null);
-  const [currentRecipe, setCurrentRecipe] = useState<SoundscapeRecipe | null>(null);
-  const [currentCacheKey, setCurrentCacheKey] = useState<string | null>(null);
-  const [currentAudioBlobs, setCurrentAudioBlobs] = useState<AudioBlobMap | null>(null);
+  const { locale, messages } = useI18n();
+  const [generationJobs, setGenerationJobs] = useState<GenerationJob[]>([]);
   const [cachedMarkers, setCachedMarkers] = useState<CachedSoundscape[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [preferences, setPreferences] = useState<UserPreferences>(createDefaultPreferences);
   const [hasConfiguredApiKey, setHasConfiguredApiKey] = useState<boolean | null>(null);
 
+  const cachedMarkersRef = useRef<CachedSoundscape[]>([]);
+  const generationJobsRef = useRef<GenerationJob[]>([]);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const previewUrlRef = useRef<string | null>(null);
   const previewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -177,10 +223,30 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     isSupported,
   } = useAudioPlayer(generateDynamicEventAudio);
 
+  useEffect(() => {
+    cachedMarkersRef.current = cachedMarkers;
+  }, [cachedMarkers]);
+
+  useEffect(() => {
+    generationJobsRef.current = generationJobs;
+  }, [generationJobs]);
+
+  const updateGenerationJob = useCallback(
+    (jobId: string, updater: (job: GenerationJob) => GenerationJob): void => {
+      setGenerationJobs((previous) =>
+        previous.map((job) => (job.id === jobId ? updater(job) : job))
+      );
+    },
+    []
+  );
+
+  const removeGenerationJob = useCallback((jobId: string): void => {
+    setGenerationJobs((previous) => previous.filter((job) => job.id !== jobId));
+  }, []);
+
   const refreshCaches = useCallback(async (): Promise<void> => {
     const markers = await getCachedMarkers();
-    setCachedMarkers(markers);
-    setFavoriteIds(loadFavorites());
+    setCachedMarkers(sortCachedLocations(markers));
   }, []);
 
   const syncBrowserSettings = useCallback((): void => {
@@ -317,186 +383,174 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     await refreshCaches();
   }, [refreshCaches]);
 
-  const applySoundscapeState = useCallback(
-    (
-      cacheKey: string,
-      recipe: SoundscapeRecipe,
-      blobs: AudioBlobMap
-    ): void => {
-      cleanupPreview(false);
-      setCurrentCacheKey(cacheKey);
-      setCurrentRecipe(recipe);
-      setCurrentLocation(recipe.location);
-      setCurrentAudioBlobs(blobs);
-      setErrorMessageKey(null);
-      setStatus('ready');
-      setStatusMessageKey('currentLocation');
-    },
-    [cleanupPreview]
-  );
-
-  const playCurrent = useCallback(async (): Promise<void> => {
-    if (!currentRecipe || !currentAudioBlobs || !currentCacheKey) {
-      return;
-    }
-
-    await enableAudio();
-    await play(currentRecipe, currentAudioBlobs);
-    await recordSuccessfulPlayback(currentCacheKey, currentRecipe);
-  }, [currentAudioBlobs, currentCacheKey, currentRecipe, enableAudio, play, recordSuccessfulPlayback]);
-
-  const hydrateFromCache = useCallback(
-    async (cacheKey: string, shouldAutoPlay: boolean): Promise<boolean> => {
-      const cached = await getCachedSoundscape(cacheKey);
+  const playLocation = useCallback(
+    async (cacheKey: string): Promise<void> => {
+      const cachedFromState =
+        cachedMarkersRef.current.find((entry) => entry.id === cacheKey) ?? null;
+      const cached =
+        cachedFromState?.audioBlobs && cachedFromState.recipe
+          ? cachedFromState
+          : await getCachedSoundscape(cacheKey);
       const recipe = coerceRecipe(cached?.recipe);
+
       if (!cached || !recipe || !cached.audioBlobs) {
-        return false;
-      }
-
-      const blobs = cached.audioBlobs as AudioBlobMap;
-      applySoundscapeState(cacheKey, recipe, blobs);
-
-      if (shouldAutoPlay) {
-        await enableAudio();
-        await play(recipe, blobs);
-        await recordSuccessfulPlayback(cacheKey, recipe);
-      }
-
-      return true;
-    },
-    [applySoundscapeState, enableAudio, play, recordSuccessfulPlayback]
-  );
-
-  const buildAndStoreSoundscape = useCallback(
-    async (
-      lat: number,
-      lng: number,
-      shouldAutoPlay: boolean,
-      forceRefresh: boolean
-    ): Promise<void> => {
-      if (!hasApiKey()) {
-        setStatus('error');
-        setErrorMessageKey('apiKeyRequiredError');
-        setStatusMessageKey('apiKeyRequiredStatus');
         return;
       }
 
-      setStatus('loading');
-      setErrorMessageKey(null);
-      setStatusMessageKey('generating');
+      cleanupPreview(false);
+      await enableAudio();
+      await play(recipe, cached.audioBlobs as AudioBlobMap);
+      await recordSuccessfulPlayback(cacheKey, recipe);
+    },
+    [cleanupPreview, enableAudio, play, recordSuccessfulPlayback]
+  );
 
-      const location = await resolveLocation(lat, lng);
-      const cacheKey = generateCacheKey(lat, lng, location.currentLocalHour);
+  const runGeneration = useCallback(
+    async (jobId: string, lat: number, lng: number): Promise<void> => {
+      try {
+        if (!hasApiKey()) {
+          throw new Error(messages.session.apiKeyRequiredError);
+        }
 
-      if (!forceRefresh) {
-        const cacheHit = await hydrateFromCache(cacheKey, shouldAutoPlay);
-        if (cacheHit) {
+        updateGenerationJob(jobId, (job) => ({
+          ...job,
+          progress: 18,
+          status: 'resolving',
+          errorMessage: null,
+        }));
+
+        const location = await resolveLocation(lat, lng);
+        const cacheKey = generateCacheKey(lat, lng, location.currentLocalHour);
+
+        updateGenerationJob(jobId, (job) => ({
+          ...job,
+          cacheKey,
+          cityName: location.cityName,
+          regionName: location.regionName ?? null,
+          countryName: location.countryName,
+          timeSlot: location.timeSlot,
+          progress: 48,
+          status: 'generating',
+          errorMessage: null,
+          locationContext: location,
+        }));
+
+        const cached = await getCachedSoundscape(cacheKey);
+        const cachedRecipe = coerceRecipe(cached?.recipe);
+        if (cached && cachedRecipe && cached.audioBlobs) {
+          setCachedMarkers((previous) => upsertCachedLocation(previous, cached));
+          removeGenerationJob(jobId);
           return;
         }
-      }
 
-      const recipe = generateRecipe(location);
-      const generatedAudio = await generateSoundscapeAudio(recipe);
+        const recipe = generateRecipe(location);
 
-      const blobs = generatedAudio.blobs;
-      if (Object.keys(blobs).length === 0) {
-        setStatus('error');
-        setErrorMessageKey('noAudioLayers');
-        setStatusMessageKey('generationFailed');
-        return;
-      }
+        updateGenerationJob(jobId, (job) => ({
+          ...job,
+          progress: 76,
+          status: 'generating',
+        }));
 
-      applySoundscapeState(cacheKey, recipe, blobs);
+        const generatedAudio = await generateSoundscapeAudio(recipe);
+        const blobs = generatedAudio.blobs;
 
-      await cacheSoundscape(cacheKey, {
-        coordinates: recipe.location.coordinates,
-        timeSlot: recipe.location.timeSlot,
-        cityName: recipe.location.cityName,
-        countryName: recipe.location.countryName,
-        generatedAt: recipe.generatedAt,
-        playCount: 0,
-        lastPlayedAt: recipe.generatedAt,
-        sizeBytes: getSoundscapeSizeBytes(blobs),
-        audioBlobs: blobs,
-        recipe,
-      });
-      await refreshCaches();
+        if (Object.keys(blobs).length === 0) {
+          throw new Error(messages.session.noAudioLayers);
+        }
 
-      if (shouldAutoPlay) {
-        await enableAudio();
-        await play(recipe, blobs);
-        await recordSuccessfulPlayback(cacheKey, recipe);
-      } else {
-        setStatusMessageKey('readyToPlay');
+        const nextCachedEntry: CachedSoundscape = {
+          id: cacheKey,
+          coordinates: recipe.location.coordinates,
+          timeSlot: recipe.location.timeSlot,
+          cityName: recipe.location.cityName,
+          countryName: recipe.location.countryName,
+          generatedAt: recipe.generatedAt,
+          playCount: 0,
+          lastPlayedAt: recipe.generatedAt,
+          sizeBytes: getSoundscapeSizeBytes(blobs),
+          audioBlobs: blobs,
+          recipe,
+        };
+
+        await cacheSoundscape(cacheKey, {
+          coordinates: nextCachedEntry.coordinates,
+          timeSlot: nextCachedEntry.timeSlot,
+          cityName: nextCachedEntry.cityName,
+          countryName: nextCachedEntry.countryName,
+          generatedAt: nextCachedEntry.generatedAt,
+          playCount: nextCachedEntry.playCount,
+          lastPlayedAt: nextCachedEntry.lastPlayedAt,
+          sizeBytes: nextCachedEntry.sizeBytes,
+          audioBlobs: nextCachedEntry.audioBlobs,
+          recipe: nextCachedEntry.recipe,
+        });
+
+        setCachedMarkers((previous) => upsertCachedLocation(previous, nextCachedEntry));
+        removeGenerationJob(jobId);
+        void refreshCaches();
+      } catch (error) {
+        const fallbackMessage = messages.session.generationFailed;
+        const nextMessage =
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : fallbackMessage;
+
+        updateGenerationJob(jobId, (job) => ({
+          ...job,
+          progress: 100,
+          status: 'error',
+          errorMessage: nextMessage,
+        }));
       }
     },
-    [
-      applySoundscapeState,
-      enableAudio,
-      hydrateFromCache,
-      play,
-      recordSuccessfulPlayback,
-      refreshCaches,
-    ]
+    [messages, refreshCaches, removeGenerationJob, updateGenerationJob]
   );
 
   const handleCoordinateSelect = useCallback(
     async (lat: number, lng: number): Promise<void> => {
-      await buildAndStoreSoundscape(lat, lng, preferences.autoPlay, false);
+      if (!hasApiKey()) {
+        setHasConfiguredApiKey(false);
+        return;
+      }
+
+      const coordinateToken = createCoordinateToken(lat, lng);
+      const existingJob = generationJobsRef.current.find(
+        (job) => job.coordinateToken === coordinateToken && job.status !== 'error'
+      );
+
+      if (existingJob) {
+        return;
+      }
+
+      const job = createGenerationJob(lat, lng);
+      setGenerationJobs((previous) => [job, ...previous]);
+      void runGeneration(job.id, lat, lng);
     },
-    [buildAndStoreSoundscape, preferences.autoPlay]
+    [runGeneration]
   );
 
   const handleMarkerSelect = useCallback(
     async (cacheKey: string): Promise<void> => {
-      const cacheHit = await hydrateFromCache(cacheKey, true);
-      if (!cacheHit) {
-        setStatus('error');
-        setErrorMessageKey('cacheMissing');
-        setStatusMessageKey('cacheMissingStatus');
-        await refreshCaches();
-      }
+      await playLocation(cacheKey);
     },
-    [hydrateFromCache, refreshCaches]
+    [playLocation]
   );
 
-  const handleFavoriteSelect = useCallback(
+  const handleLocationSelect = useCallback(
     async (cacheKey: string): Promise<void> => {
-      await handleMarkerSelect(cacheKey);
+      await playLocation(cacheKey);
     },
-    [handleMarkerSelect]
+    [playLocation]
   );
 
-  const regenerateCurrent = useCallback(async (): Promise<void> => {
-    if (!currentLocation) {
-      return;
-    }
-
-    await buildAndStoreSoundscape(
-      currentLocation.coordinates[0],
-      currentLocation.coordinates[1],
-      preferences.autoPlay,
-      true
-    );
-  }, [buildAndStoreSoundscape, currentLocation, preferences.autoPlay]);
-
-  const toggleFavoriteForCurrent = useCallback((): void => {
-    if (!currentCacheKey) {
-      return;
-    }
-
-    if (isFavorite(currentCacheKey)) {
-      removeFavorite(currentCacheKey);
-    } else {
-      addFavorite(currentCacheKey);
-    }
-
-    setFavoriteIds(loadFavorites());
-  }, [currentCacheKey]);
+  const hasActiveGeneration = useMemo(
+    () => generationJobs.some((job) => job.status !== 'error'),
+    [generationJobs]
+  );
 
   const handleHoverPreview = useCallback(
     async (lat: number, lng: number): Promise<void> => {
-      if (!hasApiKey() || status === 'loading') {
+      if (!hasApiKey() || hasActiveGeneration) {
         return;
       }
 
@@ -535,93 +589,155 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         // Preview is intentionally best-effort only.
       }
     },
-    [cleanupPreview, status]
+    [cleanupPreview, hasActiveGeneration]
   );
 
   const handleHoverEnd = useCallback((): void => {
     cleanupPreview(true);
   }, [cleanupPreview]);
 
-  const favoriteEntries = useMemo(() => {
-    const favoriteKeySet = new Set(favoriteIds);
-    return cachedMarkers.filter((marker) => favoriteKeySet.has(marker.id));
-  }, [cachedMarkers, favoriteIds]);
+  const describeLocationContext = useCallback(
+    (
+      locationContext: LocationContext | null
+    ): Pick<SessionLocationEntry, 'sceneDescription' | 'soundDescription'> => {
+      if (!locationContext) {
+        return {
+          sceneDescription: undefined,
+          soundDescription: undefined,
+        };
+      }
 
-  const effectiveStatus: SessionStatus =
-    playbackState.state === 'error'
-      ? 'error'
-      : playbackState.state === 'playing' || playbackState.state === 'paused'
-        ? 'ready'
-        : status;
+      return {
+        sceneDescription: messages.session.sceneDescription(
+          messages.enums.timeSlots[locationContext.timeSlot],
+          messages.enums.regions[locationContext.regionType],
+          messages.enums.climates[locationContext.climate]
+        ),
+        soundDescription: getSoundSummary(locationContext, locale),
+      };
+    },
+    [locale, messages]
+  );
 
-  const effectiveErrorMessage =
-    playbackState.state === 'error'
-      ? messages.session.playbackFailed
-      : errorMessageKey
-        ? messages.session[errorMessageKey]
-        : null;
+  const locationEntries = useMemo<SessionLocationEntry[]>(() => {
+    const loadingEntries = generationJobs.map((job) => {
+      const cityName = job.cityName ?? formatCoordinateFallback(job.coordinates);
+      const countryName = job.countryName ?? '';
+      const isError = job.status === 'error';
+      const narrative = describeLocationContext(job.locationContext);
 
-  const locationLabel = useMemo(() => {
-    if (!currentLocation) {
-      return messages.session.idleLocation;
+      return {
+        id: job.id,
+        cacheKey: job.cacheKey,
+        coordinates: job.coordinates,
+        cityName,
+        regionName: job.regionName ?? job.locationContext?.regionName,
+        countryName,
+        timeSlot: job.timeSlot,
+        createdAt: job.createdAt,
+        progress: job.progress,
+        status: isError ? ('error' as const) : ('loading' as const),
+        statusLabel: isError
+          ? job.errorMessage ?? messages.session.generationFailed
+          : job.status === 'resolving'
+            ? messages.common.loading
+            : messages.session.generating,
+        errorMessage: job.errorMessage,
+        isPlayable: false,
+        ...narrative,
+      };
+    });
+
+    const readyEntries = cachedMarkers.map((entry) => {
+      const recipe = coerceRecipe(entry.recipe);
+      const narrative = describeLocationContext(recipe?.location ?? null);
+
+      return {
+        id: entry.id,
+        cacheKey: entry.id,
+        coordinates: entry.coordinates,
+        cityName: entry.cityName,
+        regionName: recipe?.location.regionName,
+        countryName: entry.countryName,
+        timeSlot: entry.timeSlot,
+        createdAt: entry.generatedAt,
+        progress: 100,
+        status: 'ready' as const,
+        statusLabel:
+          playbackState.soundscapeId === entry.id && playbackState.state === 'playing'
+            ? messages.home.playbackStatus.playing
+            : playbackState.soundscapeId === entry.id && playbackState.state === 'paused'
+              ? messages.home.playbackStatus.paused
+              : messages.home.playbackStatus.ready,
+        errorMessage: null,
+        isPlayable: true,
+        ...narrative,
+      };
+    });
+
+    return [...loadingEntries, ...readyEntries].sort((left, right) => right.createdAt - left.createdAt);
+  }, [
+    cachedMarkers,
+    describeLocationContext,
+    generationJobs,
+    messages,
+    playbackState.soundscapeId,
+    playbackState.state,
+  ]);
+
+  const mapPins = useMemo<SessionMapPin[]>(() => {
+    const readyPins = cachedMarkers.map((entry) => ({
+      id: entry.id,
+      cacheKey: entry.id,
+      coordinates: entry.coordinates,
+      isGenerating: false,
+      isSelectable: true,
+    }));
+
+    const loadingPins = generationJobs.map((job) => ({
+      id: job.id,
+      cacheKey: job.cacheKey,
+      coordinates: job.coordinates,
+      isGenerating: job.status !== 'error',
+      isSelectable: false,
+    }));
+
+    return [...readyPins, ...loadingPins];
+  }, [cachedMarkers, generationJobs]);
+
+  const status: SessionStatus = useMemo(() => {
+    if (playbackState.state === 'error' || generationJobs.some((job) => job.status === 'error')) {
+      return hasActiveGeneration ? 'loading' : 'error';
     }
 
-    return messages.session.locationLabel(
-      currentLocation.cityName,
-      currentLocation.countryName
-    );
-  }, [currentLocation, messages]);
-
-  const sceneDescription = useMemo(() => {
-    if (!currentLocation) {
-      return messages.session.idleScene;
+    if (hasActiveGeneration) {
+      return 'loading';
     }
 
-    return messages.session.sceneDescription(
-      messages.enums.timeSlots[currentLocation.timeSlot],
-      messages.enums.regions[currentLocation.regionType],
-      messages.enums.climates[currentLocation.climate]
-    );
-  }, [currentLocation, messages]);
-
-  const effectiveStatusMessage = useMemo(() => {
-    if (playbackState.state === 'playing' || playbackState.state === 'paused') {
-      return locationLabel;
+    if (cachedMarkers.length > 0 || playbackState.state === 'playing' || playbackState.state === 'paused') {
+      return 'ready';
     }
 
-    if (statusMessageKey === 'currentLocation') {
-      return locationLabel;
-    }
-
-    return messages.session[statusMessageKey];
-  }, [locationLabel, messages, playbackState.state, statusMessageKey]);
+    return 'idle';
+  }, [cachedMarkers.length, generationJobs, hasActiveGeneration, playbackState.state]);
 
   return {
-    status: effectiveStatus,
-    statusMessage: effectiveStatusMessage,
-    errorMessage: effectiveErrorMessage,
-    currentLocation,
-    currentRecipe,
-    currentCacheKey,
-    currentAudioBlobs,
-    sceneDescription,
-    locationLabel,
+    status,
+    locationEntries,
+    mapPins,
     cachedMarkers,
-    favoriteEntries,
-    favoriteIds,
-    isCurrentFavorite: currentCacheKey ? isFavorite(currentCacheKey) : false,
     hasConfiguredApiKey,
+    hasActiveGeneration,
     preferences,
     playbackState: playbackState ?? INITIAL_PLAYBACK_STATE,
+    activePlaybackLocationId: playbackState.soundscapeId,
     isAudioSupported: isSupported,
     handleCoordinateSelect,
     handleMarkerSelect,
-    handleFavoriteSelect,
+    handleLocationSelect,
     handleHoverPreview,
     handleHoverEnd,
-    regenerateCurrent,
-    toggleFavoriteForCurrent,
-    playCurrent,
+    playLocation,
     pausePlayback: pause,
     resumePlayback: resume,
     stopPlayback: stop,

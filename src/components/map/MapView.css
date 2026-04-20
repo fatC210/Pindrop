@@ -1,3 +1,17 @@
+.map-view,
+.map-view .map-view__canvas,
+.map-view .leaflet-container {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+  scrollbar-width: none;
+}
+
+.map-view::-webkit-scrollbar,
+.map-view .map-view__canvas::-webkit-scrollbar,
+.map-view .leaflet-container::-webkit-scrollbar {
+  display: none;
+}
+
 .map-view .map-view__canvas {
   cursor: url('/map-pin-cursor.svg') 14 24, crosshair;
 }

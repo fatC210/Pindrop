@@ -7,10 +7,8 @@ import 'leaflet/dist/leaflet.css';
 
 import { useI18n } from '@/i18n/I18nProvider';
 import { validateCoordinates } from '@/utils/coordinates';
-import type { CachedSoundscape } from '@/utils/soundscapeCache';
-import { LoadingIndicator } from './LoadingIndicator';
 import { MapControls } from './MapControls';
-import { MarkerManager } from './MarkerManager';
+import { MarkerManager, type MarkerDescriptor } from './MarkerManager';
 import './MapView.css';
 
 export interface MapViewProps {
@@ -18,10 +16,10 @@ export interface MapViewProps {
   onMarkerSelect?: (cacheKey: string) => void;
   onHoverPreview?: (lat: number, lng: number) => void;
   onHoverEnd?: () => void;
-  cachedLocations?: CachedSoundscape[];
+  markers?: MarkerDescriptor[];
+  focusedCoordinates?: [number, number] | null;
   canPreview?: boolean;
   theme?: 'light' | 'dark';
-  isLoading?: boolean;
   className?: string;
 }
 
@@ -52,10 +50,10 @@ export function MapView({
   onMarkerSelect,
   onHoverPreview,
   onHoverEnd,
-  cachedLocations = [],
+  markers = [],
+  focusedCoordinates = null,
   canPreview = false,
   theme = 'light',
-  isLoading = false,
   className,
 }: MapViewProps) {
   const { messages } = useI18n();
@@ -69,12 +67,12 @@ export function MapView({
   const canPreviewRef = useRef(canPreview);
   const initialThemeRef = useRef<'light' | 'dark'>(theme);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
   const interactionStateRef = useRef<MapInteractionState>('clickable');
   const pointerDownPointRef = useRef<L.Point | null>(null);
   const suppressNextClickRef = useRef(false);
   const [map, setMap] = useState<L.Map | null>(null);
-  const [selectedCoordinates, setSelectedCoordinates] = useState<[number, number] | null>(null);
   const [interactionState, setInteractionState] = useState<MapInteractionState>('clickable');
 
   const updateInteractionState = useCallback((nextState: MapInteractionState): void => {
@@ -106,11 +104,51 @@ export function MapView({
     canPreviewRef.current = canPreview;
   }, [canPreview]);
 
+  const cancelScheduledResize = useCallback((): void => {
+    if (resizeFrameRef.current !== null) {
+      window.cancelAnimationFrame(resizeFrameRef.current);
+      resizeFrameRef.current = null;
+    }
+  }, []);
+
+  const scheduleMapSizeInvalidation = useCallback(
+    (targetMap: L.Map | null): void => {
+      cancelScheduledResize();
+
+      resizeFrameRef.current = window.requestAnimationFrame(() => {
+        resizeFrameRef.current = null;
+
+        const container = containerElementRef.current;
+        const mapPane = (targetMap as (L.Map & { _mapPane?: HTMLElement }) | null)?._mapPane;
+
+        if (
+          !targetMap ||
+          mapInstance.current !== targetMap ||
+          !container ||
+          !container.isConnected ||
+          !mapPane?.isConnected
+        ) {
+          return;
+        }
+
+        try {
+          targetMap.invalidateSize({ pan: false });
+        } catch {
+          // Leaflet can briefly tear down internal panes during remount/resize.
+        }
+      });
+    },
+    [cancelScheduledResize],
+  );
+
+  useEffect(() => cancelScheduledResize, [cancelScheduledResize]);
+
   const mapContainerRef = useCallback(
     (node: HTMLDivElement | null): void => {
       containerElementRef.current = node;
 
       if (!node) {
+        cancelScheduledResize();
         if (mapInstance.current) {
           mapInstance.current.remove();
           mapInstance.current = null;
@@ -140,9 +178,7 @@ export function MapView({
       tileLayer.addTo(createdMap);
       tileLayerRef.current = tileLayer;
 
-      requestAnimationFrame(() => {
-        createdMap.invalidateSize();
-      });
+      scheduleMapSizeInvalidation(createdMap);
 
       // Add click event listener
       createdMap.on('click', (event: L.LeafletMouseEvent) => {
@@ -165,14 +201,12 @@ export function MapView({
           return;
         }
 
-        // Set selected coordinates for loading indicator
-        setSelectedCoordinates([lat, lng]);
         onCoordinateSelectRef.current(lat, lng);
       });
 
       setMap(createdMap);
     },
-    [updateInteractionState],
+    [cancelScheduledResize, scheduleMapSizeInvalidation, updateInteractionState],
   );
 
   // Handle theme changes
@@ -194,7 +228,7 @@ export function MapView({
     }
 
     const invalidateMapSize = (): void => {
-      map.invalidateSize();
+      scheduleMapSizeInvalidation(map);
     };
 
     const observer = new ResizeObserver(() => {
@@ -203,15 +237,29 @@ export function MapView({
 
     observer.observe(containerElementRef.current);
     window.addEventListener('resize', invalidateMapSize);
-    requestAnimationFrame(() => {
-      invalidateMapSize();
-    });
+    invalidateMapSize();
 
     return (): void => {
       observer.disconnect();
       window.removeEventListener('resize', invalidateMapSize);
+      cancelScheduledResize();
     };
-  }, [map, updateInteractionState]);
+  }, [cancelScheduledResize, map, scheduleMapSizeInvalidation]);
+
+  useEffect(() => {
+    if (!map || !focusedCoordinates) {
+      return;
+    }
+
+    const [lat, lng] = focusedCoordinates;
+    const targetLatLng = map.wrapLatLng(L.latLng(lat, lng));
+    const nextZoom = Math.max(map.getZoom(), 5);
+
+    map.flyTo(targetLatLng, nextZoom, {
+      animate: true,
+      duration: 0.6,
+    });
+  }, [focusedCoordinates, map]);
 
   useEffect(() => {
     if (!map) {
@@ -345,11 +393,10 @@ export function MapView({
           height: '100%',
         }}
       />
-      <LoadingIndicator map={map} coordinates={selectedCoordinates} isVisible={isLoading} />
       <MapControls map={map} />
       <MarkerManager
         map={map}
-        cachedLocations={cachedLocations}
+        markers={markers}
         onMarkerClick={(cacheKey) => onMarkerSelectRef.current?.(cacheKey)}
       />
     </div>

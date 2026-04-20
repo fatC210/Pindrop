@@ -12,17 +12,22 @@ import './PlaybackSection.css';
 export interface PlaybackSectionProps {
   dynamicEvents: boolean;
   onDynamicEventsChange: (enabled: boolean) => void;
+  compact?: boolean;
 }
 
 /** 播放偏好设置区域：动态事件 */
 export function PlaybackSection({
   dynamicEvents,
   onDynamicEventsChange,
+  compact = false,
 }: PlaybackSectionProps): React.JSX.Element {
   const { messages } = useI18n();
 
   return (
-    <section className="playback-section" aria-labelledby="playback-section-header">
+    <section
+      className={`playback-section${compact ? ' playback-section--compact' : ''}`}
+      aria-labelledby="playback-section-header"
+    >
       <h3 id="playback-section-header" className="playback-section__header">
         {messages.settings.sections.playback.header}
       </h3>

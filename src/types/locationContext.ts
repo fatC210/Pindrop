@@ -53,6 +53,8 @@ export interface LocationContext {
   // 基础地理
   /** 城市/位置名称 */
   cityName: string;
+  /** 更细粒度的地区名称，例如区、街道或社区 */
+  regionName?: string;
   /** 国家名称 */
   countryName: string;
   /** 区域类型 */
