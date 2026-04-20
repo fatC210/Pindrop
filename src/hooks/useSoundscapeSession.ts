@@ -16,6 +16,7 @@ import type { CachedSoundscape } from '@/utils/soundscapeCache';
 import type { UserPreferences } from '@/components/settings/types';
 import {
   PREFERENCES_UPDATED_EVENT,
+  getLlmEnhancementConfig,
   preferencesStore,
 } from '@/components/settings/preferencesStore';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
@@ -23,11 +24,13 @@ import { resolveLocation } from '@/utils/geocoding';
 import { generateRecipe } from '@/utils/soundscape';
 import {
   generateAmbientPreviewAudio,
+  DEFAULT_RENDER_DURATION_SECONDS,
   generateDynamicEventAudio,
   generateSoundscapeAudio,
 } from '@/utils/elevenLabsClient';
 import {
   cacheSoundscape,
+  deleteCachedSoundscape,
   getCachedMarkers,
   getCachedSoundscape,
   updatePlayStats,
@@ -36,6 +39,7 @@ import { addLocationHistory } from '@/utils/locationHistory';
 import { generateCacheKey } from '@/utils/cacheKey';
 import { hasApiKey } from '@/utils/apiHeaders';
 import type { TimeSlot } from '@/utils/timeSlot';
+import { enrichSoundscapeNarrative } from '@/utils/soundscape/llmAnchorEnricher';
 import { getSoundSummary } from '@/utils/soundscape/sceneNarrative';
 
 type SessionStatus = 'idle' | 'loading' | 'ready' | 'error';
@@ -82,6 +86,7 @@ export interface SessionLocationEntry {
   statusLabel: string;
   errorMessage: string | null;
   isPlayable: boolean;
+  playbackDurationSeconds?: number;
   sceneDescription?: string;
   soundDescription?: string;
 }
@@ -186,6 +191,9 @@ export interface UseSoundscapeSessionResult {
   handleCoordinateSelect: (lat: number, lng: number) => Promise<void>;
   handleMarkerSelect: (cacheKey: string) => Promise<void>;
   handleLocationSelect: (cacheKey: string) => Promise<void>;
+  deleteLocationEntry: (
+    entry: Pick<SessionLocationEntry, 'id' | 'cacheKey' | 'status'>
+  ) => Promise<void>;
   handleHoverPreview: (lat: number, lng: number) => Promise<void>;
   handleHoverEnd: () => void;
   playLocation: (cacheKey: string) => Promise<void>;
@@ -205,6 +213,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
 
   const cachedMarkersRef = useRef<CachedSoundscape[]>([]);
   const generationJobsRef = useRef<GenerationJob[]>([]);
+  const cancelledGenerationJobIdsRef = useRef<Set<string>>(new Set());
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const previewUrlRef = useRef<string | null>(null);
   const previewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -247,6 +256,10 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     setGenerationJobs((previous) => previous.filter((job) => job.id !== jobId));
   }, []);
 
+  const isGenerationJobCancelled = useCallback((jobId: string): boolean => {
+    return cancelledGenerationJobIdsRef.current.has(jobId);
+  }, []);
+
   const refreshCaches = useCallback(async (): Promise<void> => {
     const markers = await getCachedMarkers();
     setCachedMarkers(sortCachedLocations(markers));
@@ -283,7 +296,12 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     };
 
     const handleStorage = (event: StorageEvent): void => {
-      if (event.key == null || event.key === 'pindrop_preferences' || event.key === 'pindrop_api_key') {
+      if (
+        event.key == null ||
+        event.key === 'pindrop_preferences' ||
+        event.key === 'pindrop_api_key' ||
+        event.key === 'pindrop_llm_api_key'
+      ) {
         syncBrowserSettings();
       }
     };
@@ -415,6 +433,10 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           throw new Error(messages.session.apiKeyRequiredError);
         }
 
+        if (isGenerationJobCancelled(jobId)) {
+          return;
+        }
+
         updateGenerationJob(jobId, (job) => ({
           ...job,
           progress: 18,
@@ -423,6 +445,9 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         }));
 
         const location = await resolveLocation(lat, lng);
+        if (isGenerationJobCancelled(jobId)) {
+          return;
+        }
         const cacheKey = generateCacheKey(lat, lng, location.currentLocalHour);
 
         updateGenerationJob(jobId, (job) => ({
@@ -439,6 +464,9 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         }));
 
         const cached = await getCachedSoundscape(cacheKey);
+        if (isGenerationJobCancelled(jobId)) {
+          return;
+        }
         const cachedRecipe = coerceRecipe(cached?.recipe);
         if (cached && cachedRecipe && cached.audioBlobs) {
           setCachedMarkers((previous) => upsertCachedLocation(previous, cached));
@@ -446,7 +474,23 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           return;
         }
 
-        const recipe = generateRecipe(location);
+        let narrativeAnchors = null;
+        const llmEnhancementConfig = getLlmEnhancementConfig();
+        if (llmEnhancementConfig) {
+          try {
+            narrativeAnchors = await enrichSoundscapeNarrative(
+              location,
+              llmEnhancementConfig
+            );
+          } catch (error) {
+            console.warn('[PinDrop] LLM narrative enrichment skipped:', error);
+          }
+        }
+
+        const recipe = generateRecipe(location, { narrativeAnchors });
+        if (isGenerationJobCancelled(jobId)) {
+          return;
+        }
 
         updateGenerationJob(jobId, (job) => ({
           ...job,
@@ -455,6 +499,9 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         }));
 
         const generatedAudio = await generateSoundscapeAudio(recipe);
+        if (isGenerationJobCancelled(jobId)) {
+          return;
+        }
         const blobs = generatedAudio.blobs;
 
         if (Object.keys(blobs).length === 0) {
@@ -471,6 +518,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           playCount: 0,
           lastPlayedAt: recipe.generatedAt,
           sizeBytes: getSoundscapeSizeBytes(blobs),
+          playbackDurationSeconds: DEFAULT_RENDER_DURATION_SECONDS,
           audioBlobs: blobs,
           recipe,
         };
@@ -484,14 +532,24 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           playCount: nextCachedEntry.playCount,
           lastPlayedAt: nextCachedEntry.lastPlayedAt,
           sizeBytes: nextCachedEntry.sizeBytes,
+          playbackDurationSeconds: nextCachedEntry.playbackDurationSeconds,
           audioBlobs: nextCachedEntry.audioBlobs,
           recipe: nextCachedEntry.recipe,
         });
+
+        if (isGenerationJobCancelled(jobId)) {
+          await deleteCachedSoundscape(cacheKey);
+          return;
+        }
 
         setCachedMarkers((previous) => upsertCachedLocation(previous, nextCachedEntry));
         removeGenerationJob(jobId);
         void refreshCaches();
       } catch (error) {
+        if (isGenerationJobCancelled(jobId)) {
+          return;
+        }
+
         const fallbackMessage = messages.session.generationFailed;
         const nextMessage =
           error instanceof Error && error.message.trim().length > 0
@@ -504,9 +562,17 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           status: 'error',
           errorMessage: nextMessage,
         }));
+      } finally {
+        cancelledGenerationJobIdsRef.current.delete(jobId);
       }
     },
-    [messages, refreshCaches, removeGenerationJob, updateGenerationJob]
+    [
+      isGenerationJobCancelled,
+      messages,
+      refreshCaches,
+      removeGenerationJob,
+      updateGenerationJob,
+    ]
   );
 
   const handleCoordinateSelect = useCallback(
@@ -544,6 +610,33 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       await playLocation(cacheKey);
     },
     [playLocation]
+  );
+
+  const deleteLocationEntry = useCallback(
+    async (
+      entry: Pick<SessionLocationEntry, 'id' | 'cacheKey' | 'status'>
+    ): Promise<void> => {
+      if (entry.status !== 'ready') {
+        cancelledGenerationJobIdsRef.current.add(entry.id);
+        removeGenerationJob(entry.id);
+        return;
+      }
+
+      if (!entry.cacheKey) {
+        return;
+      }
+
+      if (playbackState.soundscapeId === entry.cacheKey) {
+        stop();
+      }
+
+      setCachedMarkers((previous) =>
+        previous.filter((cachedEntry) => cachedEntry.id !== entry.cacheKey)
+      );
+      await deleteCachedSoundscape(entry.cacheKey);
+      void refreshCaches();
+    },
+    [playbackState.soundscapeId, refreshCaches, removeGenerationJob, stop]
   );
 
   const hasActiveGeneration = useMemo(
@@ -601,7 +694,8 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
 
   const describeLocationContext = useCallback(
     (
-      locationContext: LocationContext | null
+      locationContext: LocationContext | null,
+      narrativeAnchors?: SoundscapeRecipe['narrativeAnchors']
     ): Pick<SessionLocationEntry, 'sceneDescription' | 'soundDescription'> => {
       if (!locationContext) {
         return {
@@ -616,7 +710,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           messages.enums.regions[locationContext.regionType],
           messages.enums.climates[locationContext.climate]
         ),
-        soundDescription: getSoundSummary(locationContext, locale),
+        soundDescription: getSoundSummary(locationContext, locale, narrativeAnchors),
       };
     },
     [locale, messages]
@@ -647,13 +741,17 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
             : messages.session.generating,
         errorMessage: job.errorMessage,
         isPlayable: false,
+        playbackDurationSeconds: undefined,
         ...narrative,
       };
     });
 
     const readyEntries = cachedMarkers.map((entry) => {
       const recipe = coerceRecipe(entry.recipe);
-      const narrative = describeLocationContext(recipe?.location ?? null);
+      const narrative = describeLocationContext(
+        recipe?.location ?? null,
+        recipe?.narrativeAnchors
+      );
 
       return {
         id: entry.id,
@@ -674,6 +772,8 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
               : messages.home.playbackStatus.ready,
         errorMessage: null,
         isPlayable: true,
+        playbackDurationSeconds:
+          entry.playbackDurationSeconds ?? DEFAULT_RENDER_DURATION_SECONDS,
         ...narrative,
       };
     });
@@ -738,6 +838,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     handleCoordinateSelect,
     handleMarkerSelect,
     handleLocationSelect,
+    deleteLocationEntry,
     handleHoverPreview,
     handleHoverEnd,
     playLocation,

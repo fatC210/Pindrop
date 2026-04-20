@@ -15,7 +15,7 @@ export type FadeInDuration = 0.5 | 1.0 | 1.5 | 2.0 | 3.0;
 export type MapTheme = 'light' | 'dark';
 
 /** Navigable sections within the settings panel */
-export type SettingsSection = 'language' | 'api-key' | 'playback' | 'cache' | 'about';
+export type SettingsSection = 'language' | 'api-key' | 'llm' | 'playback' | 'cache' | 'about';
 
 // ---------------------------------------------------------------------------
 // Data-model interfaces
@@ -28,6 +28,12 @@ export interface LayerVolumes {
   dialogue: number;
   secondaryDialogue: number;
   atmosphere: number;
+}
+
+/** OpenAI-compatible LLM enrichment settings persisted alongside other preferences. */
+export interface LlmEnhancementSettings {
+  baseUrl: string;
+  model: string;
 }
 
 /**
@@ -43,6 +49,7 @@ export interface UserPreferences {
   /** Master volume level (0–1) */
   masterVolume: number;
   layerVolumes: LayerVolumes;
+  llmEnhancement: LlmEnhancementSettings;
 }
 
 /** Aggregated cache usage statistics read from IndexedDB */

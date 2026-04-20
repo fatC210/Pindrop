@@ -2,6 +2,7 @@
 import type { AppLocale } from '@/i18n/types';
 import { GeocodingResult, getCachedGeocode, cacheGeocode } from './geocodeCache';
 import { extractPlaceHierarchy, type PlaceAddress } from './placeHierarchy';
+import { throttleNominatimRequest } from './throttle';
 
 export interface NominatimResponse {
   display_name: string;
@@ -28,6 +29,19 @@ function buildReverseGeocodeUrl(
   return `${NOMINATIM_BASE_URL}/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=${encodeURIComponent(acceptLanguage)}`;
 }
 
+function buildReverseGeocodeRequestInit(signal: AbortSignal): RequestInit {
+  if (typeof window !== 'undefined') {
+    return { signal };
+  }
+
+  return {
+    signal,
+    headers: {
+      'User-Agent': 'PinDrop/1.0 (https://github.com/pindrop/pindrop)',
+    },
+  };
+}
+
 function getUnknownLocationLabel(locale: AppLocale): string {
   return locale === 'zh-CN' ? '未知地点' : 'Unknown Location';
 }
@@ -41,42 +55,40 @@ async function requestReverseGeocode(
   lng: number,
   acceptLanguage: string
 ): Promise<NominatimResponse | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  return throttleNominatimRequest(lat, lng, async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-  try {
-    const response = await fetch(buildReverseGeocodeUrl(lat, lng, acceptLanguage), {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'PinDrop/1.0 (https://github.com/pindrop/pindrop)',
-      },
-    });
+    try {
+      const response = await fetch(
+        buildReverseGeocodeUrl(lat, lng, acceptLanguage),
+        buildReverseGeocodeRequestInit(controller.signal)
+      );
 
-    clearTimeout(timeoutId);
+      if (!response.ok) {
+        console.error(`[PinDrop Error] Nominatim API error: ${response.status}`);
+        return null;
+      }
 
-    if (!response.ok) {
-      console.error(`[PinDrop Error] Nominatim API error: ${response.status}`);
+      const data = await response.json();
+      return data as NominatimResponse;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[PinDrop] Nominatim request timed out after 3s');
+      } else {
+        console.error('[PinDrop Error] Nominatim request failed:', error);
+      }
+
       return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data = await response.json();
-    return data as NominatimResponse;
-  } catch (error) {
-    clearTimeout(timeoutId);
-
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.log('[PinDrop] Nominatim request timed out after 3s');
-    } else {
-      console.error('[PinDrop Error] Nominatim request failed:', error);
-    }
-
-    return null;
-  }
+  });
 }
 
 /**
  * Reverse geocode coordinates using Nominatim API
- * Includes 3-second timeout and required User-Agent header
+ * Includes a 3-second timeout and throttles requests to Nominatim's public API.
  */
 export async function reverseGeocode(
   lat: number,
@@ -111,8 +123,16 @@ export async function getLocalizedPlaceName(
     });
   });
 
-  localizedPlaceNameCache.set(cacheKey, request);
-  return request;
+  const resolvedRequest = request.then((localizedPlaceName) => {
+    if (!localizedPlaceName) {
+      localizedPlaceNameCache.delete(cacheKey);
+    }
+
+    return localizedPlaceName;
+  });
+
+  localizedPlaceNameCache.set(cacheKey, resolvedRequest);
+  return resolvedRequest;
 }
 
 /**

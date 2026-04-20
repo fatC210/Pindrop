@@ -9,7 +9,7 @@ import type { AudioBlobMap, LayerType } from '@/utils/audio/types';
 import { getApiKeyHeader } from './apiHeaders';
 
 const ELEVENLABS_API_BASE_URL = 'https://api.elevenlabs.io/v1';
-const DEFAULT_RENDER_DURATION_SECONDS = 22;
+export const DEFAULT_RENDER_DURATION_SECONDS = 22;
 const PREVIEW_DURATION_SECONDS = 4;
 
 interface ElevenLabsVoice {

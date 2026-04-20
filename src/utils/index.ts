@@ -16,6 +16,7 @@ export {
   cacheSoundscape,
   checkCacheExists,
   getCachedMarkers,
+  deleteCachedSoundscape,
   updatePlayStats,
   evictLRU,
   handleStorageQuotaExceeded,

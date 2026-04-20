@@ -14,7 +14,10 @@
  */
 
 import type { LocationContext } from '@/types/locationContext';
-import type { SoundscapeRecipe } from '@/types/soundscapeRecipe';
+import type {
+  SoundscapeNarrativeAnchors,
+  SoundscapeRecipe,
+} from '@/types/soundscapeRecipe';
 import { generateCacheKey } from '@/utils/timeSlot';
 import { getTemplate } from './regionTemplateMapper';
 import { getTerrainSound } from './terrainSoundMapper';
@@ -105,7 +108,14 @@ function clampRecipeValues(recipe: SoundscapeRecipe): SoundscapeRecipe {
  * @param context - 上游 GeocodingEngine 输出的 LocationContext
  * @returns 完整的 SoundscapeRecipe
  */
-export function generateRecipe(context: LocationContext): SoundscapeRecipe {
+export interface RecipeGenerationOptions {
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null;
+}
+
+export function generateRecipe(
+  context: LocationContext,
+  options: RecipeGenerationOptions = {}
+): SoundscapeRecipe {
   // 步骤 1: 生成配方 ID（与缓存键一致）
   const [lat, lng] = context.coordinates;
   const id = generateCacheKey(lat, lng, context.timeSlot);
@@ -124,13 +134,14 @@ export function generateRecipe(context: LocationContext): SoundscapeRecipe {
 
   // 步骤 6: 计算时间插值参数
   const timeInterpolation = interpolate(context.currentLocalHour);
+  const narrativeAnchors = options.narrativeAnchors ?? undefined;
 
   // 步骤 7: 构建 5 层声音参数，每层独立 try-catch
 
   // 7a: 构建 Ambient 层
   let ambient;
   try {
-    ambient = buildAmbientLayer(template, terrainSound, timeInterpolation, context);
+    ambient = buildAmbientLayer(template, terrainSound, timeInterpolation, context, narrativeAnchors);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[PinDrop Error] LayerBuilder: Failed to build ambient: ${message}`);
@@ -140,7 +151,7 @@ export function generateRecipe(context: LocationContext): SoundscapeRecipe {
   // 7b: 构建 Signature 层
   let signature;
   try {
-    signature = buildSignatureLayer(template, timeInterpolation, context);
+    signature = buildSignatureLayer(template, timeInterpolation, context, narrativeAnchors);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[PinDrop Error] LayerBuilder: Failed to build signature: ${message}`);
@@ -170,7 +181,7 @@ export function generateRecipe(context: LocationContext): SoundscapeRecipe {
   // 7e: 构建 Atmosphere 层
   let atmosphere;
   try {
-    atmosphere = buildAtmosphereLayer(template, timeInterpolation, context);
+    atmosphere = buildAtmosphereLayer(template, timeInterpolation, context, narrativeAnchors);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[PinDrop Error] LayerBuilder: Failed to build atmosphere: ${message}`);
@@ -191,6 +202,7 @@ export function generateRecipe(context: LocationContext): SoundscapeRecipe {
       atmosphere,
     },
     timeInterpolation,
+    narrativeAnchors,
   };
 
   // 最终安全网：clamp 所有 volume 和 pan 值

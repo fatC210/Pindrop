@@ -6,6 +6,7 @@ export { SettingsPanel } from './SettingsPanel';
 
 // 区域组件
 export { ApiKeySection } from './ApiKeySection';
+export { LlmSection } from './LlmSection';
 export { LanguageSection } from './LanguageSection';
 export { PlaybackSection } from './PlaybackSection';
 export { CacheSection } from './CacheSection';
@@ -30,9 +31,14 @@ export {
   storeApiKey,
   retrieveApiKey,
   clearApiKey,
+  storeLlmApiKey,
+  retrieveLlmApiKey,
+  clearLlmApiKey,
+  getLlmEnhancementConfig,
   PREFERENCES_KEY,
   PREFERENCES_UPDATED_EVENT,
   API_KEY_KEY,
+  LLM_API_KEY_KEY,
   DEFAULT_PREFERENCES,
   PreferencesStore,
 } from './preferencesStore';
@@ -46,6 +52,7 @@ export type {
   MapTheme,
   SettingsSection,
   LayerVolumes,
+  LlmEnhancementSettings,
   UserPreferences,
   CacheStatistics,
   ApiKeyState,
@@ -63,6 +70,7 @@ export type {
 } from './types';
 
 export type { ApiKeySectionProps } from './ApiKeySection';
+export type { LlmSectionProps } from './LlmSection';
 export type { LanguageSectionProps } from './LanguageSection';
 export type { PlaybackSectionProps } from './PlaybackSection';
 export type { CacheSectionProps } from './CacheSection';

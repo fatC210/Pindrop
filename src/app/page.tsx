@@ -61,8 +61,10 @@ export default function Home(): React.JSX.Element {
   const { locale, messages, setLocale } = useI18n();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [focusedCoordinates, setFocusedCoordinates] = useState<[number, number] | null>(null);
+  const [pendingListFocusLocationId, setPendingListFocusLocationId] = useState<string | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
+  const locationCardRefs = useRef<Record<string, HTMLElement | null>>({});
   const session = useSoundscapeSession();
   const shouldShowApiKeyPrompt = session.hasConfiguredApiKey === false;
   const visibleLocationEntries = shouldShowApiKeyPrompt
@@ -121,6 +123,24 @@ export default function Home(): React.JSX.Element {
     };
   }, [isSettingsOpen]);
 
+  useEffect(() => {
+    if (!pendingListFocusLocationId) {
+      return;
+    }
+
+    const targetCard = locationCardRefs.current[pendingListFocusLocationId];
+    if (!targetCard) {
+      return;
+    }
+
+    targetCard.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
+    setPendingListFocusLocationId(null);
+  }, [pendingListFocusLocationId, visibleLocationEntries]);
+
   const handleLanguageChange = useCallback(
     (nextLocale: AppLocale): void => {
       if (nextLocale === locale) {
@@ -145,14 +165,27 @@ export default function Home(): React.JSX.Element {
 
   const handleMarkerSelect = useCallback(
     (cacheKey: string): void => {
+      const matchingEntry = visibleLocationEntries.find((entry) => entry.cacheKey === cacheKey);
+      if (matchingEntry) {
+        setFocusedCoordinates([matchingEntry.coordinates[0], matchingEntry.coordinates[1]]);
+        setPendingListFocusLocationId(matchingEntry.id);
+      }
+
       void session.handleMarkerSelect(cacheKey);
     },
-    [session]
+    [session, visibleLocationEntries]
   );
 
   const handleLocationFocus = useCallback((coordinates: [number, number]): void => {
     setFocusedCoordinates([coordinates[0], coordinates[1]]);
   }, []);
+
+  const handleLocationDelete = useCallback(
+    (entry: Pick<SessionLocationEntry, 'id' | 'cacheKey' | 'status'>): void => {
+      void session.deleteLocationEntry(entry);
+    },
+    [session]
+  );
 
   const handleHoverPreview = useCallback(
     (lat: number, lng: number): void => {
@@ -337,14 +370,20 @@ export default function Home(): React.JSX.Element {
                 const playbackPositionLabel = isActiveLocation
                   ? formatPlaybackTime(session.playbackState.playbackPositionSeconds)
                   : '0:00';
+                const playbackDurationSeconds = isActiveLocation
+                  ? session.playbackState.playbackDurationSeconds
+                  : entry.playbackDurationSeconds ?? 0;
                 const playbackDurationLabel =
-                  isActiveLocation && session.playbackState.playbackDurationSeconds > 0
-                    ? formatPlaybackTime(session.playbackState.playbackDurationSeconds)
+                  playbackDurationSeconds > 0
+                    ? formatPlaybackTime(playbackDurationSeconds)
                     : null;
 
                 return (
                   <article
                     key={entry.id}
+                    ref={(node) => {
+                      locationCardRefs.current[entry.id] = node;
+                    }}
                     className={`${styles.locationCard}${
                       entry.status === 'error'
                         ? ` ${styles.locationCardError}`
@@ -365,17 +404,41 @@ export default function Home(): React.JSX.Element {
                         </p>
                       </div>
 
-                      <span
-                        className={`${styles.locationStatus}${
-                          entry.status === 'error'
-                            ? ` ${styles.locationStatusError}`
-                            : entry.status === 'ready'
-                              ? ` ${styles.locationStatusReady}`
-                              : ` ${styles.locationStatusLoading}`
-                        }`}
-                      >
-                        {statusLabel}
-                      </span>
+                      <div className={styles.locationHeaderActions}>
+                        <span
+                          className={`${styles.locationStatus}${
+                            entry.status === 'error'
+                              ? ` ${styles.locationStatusError}`
+                              : entry.status === 'ready'
+                                ? ` ${styles.locationStatusReady}`
+                                : ` ${styles.locationStatusLoading}`
+                          }`}
+                        >
+                          {statusLabel}
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.locationDeleteButton}
+                          aria-label={messages.home.actions.delete}
+                          title={messages.home.actions.delete}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleLocationDelete(entry);
+                          }}
+                        >
+                          <svg
+                            className={styles.locationDeleteIcon}
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                            focusable="false"
+                          >
+                            <path
+                              d="M9.5 4.75h5a1.5 1.5 0 0 1 1.5 1.5V7h2a.75.75 0 0 1 0 1.5h-.62l-.7 9.18A2.25 2.25 0 0 1 14.44 20H9.56a2.25 2.25 0 0 1-2.24-2.32l-.7-9.18H6a.75.75 0 0 1 0-1.5h2v-.75a1.5 1.5 0 0 1 1.5-1.5m0 1.5V7h5v-.75zm-1.37 2.25.68 9.07a.75.75 0 0 0 .75.68h4.88a.75.75 0 0 0 .75-.68l.68-9.07zm2.37 2a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75m3 0a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5a.75.75 0 0 1 .75-.75"
+                              fill="currentColor"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
 
                     {entry.soundDescription ? (
@@ -421,7 +484,8 @@ export default function Home(): React.JSX.Element {
                           className={styles.playbackIconButton}
                           aria-label={playbackButtonLabel}
                           title={playbackButtonLabel}
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             if (!entry.cacheKey) {
                               return;
                             }
@@ -474,7 +538,8 @@ export default function Home(): React.JSX.Element {
                           type="button"
                           className={styles.locationActionPrimary}
                           disabled={!entry.isPlayable}
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             if (!entry.isPlayable || !entry.cacheKey) {
                               return;
                             }

@@ -310,6 +310,13 @@
   gap: 12px;
 }
 
+.locationHeaderActions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .locationTitleGroup {
   flex: 1 1 auto;
   min-width: 0;
@@ -358,6 +365,41 @@
 .locationStatusError {
   background: rgba(220, 38, 38, 0.12);
   color: #b91c1c;
+}
+
+.locationDeleteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.08);
+  color: rgba(185, 28, 28, 0.82);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.locationDeleteButton:hover {
+  transform: translateY(-1px);
+  background: rgba(220, 38, 38, 0.14);
+  color: #b91c1c;
+}
+
+.locationDeleteButton:focus-visible {
+  outline: 2px solid rgba(220, 38, 38, 0.3);
+  outline-offset: 2px;
+}
+
+.locationDeleteIcon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 
 .progressRow {
@@ -547,6 +589,15 @@
   color: var(--text-primary);
 }
 
+.locationActionDanger {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+.locationActionDanger:hover {
+  background: rgba(220, 38, 38, 0.16);
+}
+
 .locationActionPrimary:focus-visible,
 .locationActionSecondary:focus-visible {
   outline: 2px solid var(--accent);
@@ -647,6 +698,10 @@
   }
 
   .locationStatus {
+    align-self: flex-start;
+  }
+
+  .locationHeaderActions {
     align-self: flex-start;
   }
 

@@ -11,11 +11,12 @@ function renderApiKeySection(
 ): {
   onApiKeyChange: ReturnType<typeof vi.fn>;
   onVerify: ReturnType<typeof vi.fn>;
+  unmount: ReturnType<typeof render>['unmount'];
 } {
   const onApiKeyChange = vi.fn();
   const onVerify = vi.fn().mockResolvedValue(undefined);
 
-  render(
+  const renderResult = render(
     <I18nProvider>
       <ApiKeySection
         apiKey=""
@@ -29,7 +30,7 @@ function renderApiKeySection(
     </I18nProvider>,
   );
 
-  return { onApiKeyChange, onVerify };
+  return { onApiKeyChange, onVerify, unmount: renderResult.unmount };
 }
 
 function renderStatefulApiKeySection(
@@ -115,6 +116,19 @@ describe('ApiKeySection', () => {
     fireEvent.change(input, { target: { value: apiKey } });
     const toggle = screen.getByRole('button', { name: 'Show key' });
     fireEvent.blur(input, { relatedTarget: toggle });
+
+    expect(localStorage.getItem(API_KEY_KEY)).toBe(apiKey);
+    expect(onApiKeyChange).toHaveBeenCalledWith(apiKey);
+    expect(onVerify).toHaveBeenCalledWith(apiKey);
+  });
+
+  test('saves and verifies a valid API key when the section unmounts before blur', () => {
+    const { onApiKeyChange, onVerify, unmount } = renderApiKeySection();
+    const input = screen.getByLabelText('ElevenLabs API Key', { selector: 'input' });
+    const apiKey = 'sk-abcdefghijklmnopqrstuvwxyz012345';
+
+    fireEvent.change(input, { target: { value: apiKey } });
+    unmount();
 
     expect(localStorage.getItem(API_KEY_KEY)).toBe(apiKey);
     expect(onApiKeyChange).toHaveBeenCalledWith(apiKey);

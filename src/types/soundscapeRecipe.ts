@@ -10,6 +10,25 @@
 import type { LocationContext } from '@/types/locationContext';
 import type { TimeSlot } from '@/utils/timeSlot';
 
+export interface LocalizedCueLabel {
+  en: string;
+  'zh-CN': string;
+}
+
+export interface NarrativeAnchorCue {
+  prompt: string;
+  label: LocalizedCueLabel;
+}
+
+export interface SoundscapeNarrativeAnchors {
+  source: 'llm' | 'rules';
+  confidence: number;
+  cues: NarrativeAnchorCue[];
+  signature?: NarrativeAnchorCue;
+  atmosphereTone?: string;
+  specificityInstruction?: string;
+}
+
 // === 层接口 ===
 
 /** 环境音层 — SFX 类型，持续循环播放 */
@@ -132,6 +151,8 @@ export interface SoundscapeRecipe {
   layers: SoundscapeLayers;
   /** 时间插值信息 */
   timeInterpolation: TimeInterpolation;
+  /** Optional narrative anchors used to make the prompts more place-specific */
+  narrativeAnchors?: SoundscapeNarrativeAnchors;
 }
 
 // === 声景模板 ===

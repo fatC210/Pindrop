@@ -6,11 +6,13 @@ import type {
   SignatureLayer,
   SoundscapeTemplate,
   TimeInterpolation,
+  SoundscapeNarrativeAnchors,
 } from '@/types/soundscapeRecipe';
 import type { TimeSlot } from '@/utils/timeSlot';
 import {
   getCulturalAtmosphereTone,
   getPromptPlaceDescriptor,
+  getPromptSpecificityInstruction,
   getSelectedSoundCues,
   getSignatureCue,
 } from './sceneNarrative';
@@ -91,12 +93,16 @@ export function buildAmbientLayer(
   template: SoundscapeTemplate,
   terrainSound: string,
   interpolation: TimeInterpolation,
-  context: LocationContext
+  context: LocationContext,
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): AmbientLayer {
   const weatherDesc = getWeatherDescription(context.climate);
   const basePrompt = template.ambientPrompt.replace('{weather}', weatherDesc);
   const placeDescriptor = getPromptPlaceDescriptor(context);
-  const cueDescriptions = getSelectedSoundCues(context).map((cue) => cue.prompt).join(', ');
+  const specificityInstruction = getPromptSpecificityInstruction(context, narrativeAnchors);
+  const cueDescriptions = getSelectedSoundCues(context, narrativeAnchors)
+    .map((cue) => cue.prompt)
+    .join(', ');
   const environmentDetails = [terrainSound];
 
   if (context.nearWater !== null) {
@@ -108,6 +114,7 @@ export function buildAmbientLayer(
     `Build a continuous ambient bed from everyday local life: ${cueDescriptions}.`,
     `Regional foundation: ${basePrompt}.`,
     `Natural environment: ${environmentDetails.join(', ')}.`,
+    specificityInstruction,
     'Keep perspective realistic and layered. Avoid cinematic stingers, random novelty effects, exaggerated animals that do not belong here, and synthetic textures.',
   ].join(' ');
 
@@ -124,16 +131,19 @@ export function buildAmbientLayer(
 export function buildSignatureLayer(
   template: SoundscapeTemplate,
   interpolation: TimeInterpolation,
-  context: LocationContext
+  context: LocationContext,
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): SignatureLayer {
   const { activity } = interpolation.appliedParams;
   const placeDescriptor = getPromptPlaceDescriptor(context);
-  const signatureCue = getSignatureCue(context);
+  const specificityInstruction = getPromptSpecificityInstruction(context, narrativeAnchors);
+  const signatureCue = getSignatureCue(context, narrativeAnchors);
   const fallbackSignature = template.signaturePool[0]?.trim();
   const detailPrompt =
     signatureCue.prompt || fallbackSignature || 'one brief local daily-life sound detail';
   const prompt = [
     `A brief recognisable everyday sound from ${placeDescriptor}: ${detailPrompt}.`,
+    specificityInstruction,
     'It should feel locally grounded, naturally recorded, and never theatrical or comedic.',
   ].join(' ');
 
@@ -248,9 +258,10 @@ export function buildSecondaryDialogueLayer(
 export function buildAtmosphereLayer(
   template: SoundscapeTemplate,
   interpolation: TimeInterpolation,
-  context: LocationContext
+  context: LocationContext,
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): AtmosphereLayer {
-  const culturalTone = getCulturalAtmosphereTone(context);
+  const culturalTone = getCulturalAtmosphereTone(context, narrativeAnchors);
   const placeDescriptor = getPromptPlaceDescriptor(context);
   const timeMood = getTimeMoodDescription(interpolation.sourceSlot);
   const prompt = `Subtle ${template.atmosphereStyle.replace(

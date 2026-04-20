@@ -3,7 +3,7 @@
 // API Key 管理区域组件
 // 处理 API key 输入、失焦保存、显示/隐藏和远程验证
 // Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 3.1, 3.3, 3.6
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useI18n } from '@/i18n/I18nProvider';
 import type { ApiKeyErrorCode, VerificationResult } from './types';
@@ -42,6 +42,8 @@ export function ApiKeySection({
   const [pendingCommit, setPendingCommit] = useState<PendingApiKeyCommit | null>(null);
   const [validationError, setValidationError] = useState<ApiKeyErrorCode | null>(null);
   const [isApiKeyVisible, setIsApiKeyVisible] = useState<boolean>(false);
+  const apiKeyRef = useRef(apiKey);
+  const draftValueRef = useRef<string | null>(draftValue);
 
   const hasLocalChanges = draftValue !== null;
   const pendingInputValue =
@@ -53,10 +55,20 @@ export function ApiKeySection({
 
   const isApiKeyVisibleInInput = hasInputValue && isApiKeyVisible;
 
+  useEffect(() => {
+    apiKeyRef.current = apiKey;
+  }, [apiKey]);
+
+  useEffect(() => {
+    draftValueRef.current = draftValue;
+  }, [draftValue]);
+
   // 处理输入变化，只更新草稿值并隐藏旧的错误/验证结果
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>): void => {
-      setDraftValue(event.target.value);
+      const nextDraftValue = event.target.value;
+      draftValueRef.current = nextDraftValue;
+      setDraftValue(nextDraftValue);
       setPendingCommit(null);
       setValidationError(null);
     },
@@ -68,45 +80,63 @@ export function ApiKeySection({
   }, []);
 
   const commitInputValue = useCallback(
-    (rawValue: string): void => {
+    (
+      rawValue: string,
+      options?: {
+        updateLocalState?: boolean;
+      },
+    ): void => {
+      const updateLocalState = options?.updateLocalState ?? true;
       const normalizedValue = normalizeApiKey(rawValue);
+      const previousApiKey = apiKeyRef.current;
 
       if (!normalizedValue) {
         clearApiKey();
         onApiKeyChange('');
-        setDraftValue(null);
-        setPendingCommit({
-          previousApiKey: apiKey,
-          nextApiKey: '',
-        });
-        setValidationError(null);
+        draftValueRef.current = null;
+        if (updateLocalState) {
+          setDraftValue(null);
+          setPendingCommit({
+            previousApiKey,
+            nextApiKey: '',
+          });
+          setValidationError(null);
+        }
         return;
       }
 
       const validationResult = validateApiKeyFormat(normalizedValue);
       if (!validationResult.isValid) {
-        setValidationError(validationResult.error ?? 'INVALID_FORMAT');
+        if (updateLocalState) {
+          setValidationError(validationResult.error ?? 'INVALID_FORMAT');
+        }
         return;
       }
 
-      if (normalizedValue === apiKey) {
-        setDraftValue(null);
-        setPendingCommit(null);
-        setValidationError(null);
+      if (normalizedValue === previousApiKey) {
+        draftValueRef.current = null;
+        if (updateLocalState) {
+          setDraftValue(null);
+          setPendingCommit(null);
+          setValidationError(null);
+        }
         return;
       }
 
       storeApiKey(normalizedValue);
       onApiKeyChange(normalizedValue);
-      setDraftValue(null);
-      setPendingCommit({
-        previousApiKey: apiKey,
-        nextApiKey: normalizedValue,
-      });
-      setValidationError(null);
+      draftValueRef.current = null;
+      if (updateLocalState) {
+        setDraftValue(null);
+        setPendingCommit({
+          previousApiKey,
+          nextApiKey: normalizedValue,
+        });
+        setValidationError(null);
+      }
       void onVerify(normalizedValue);
     },
-    [apiKey, onApiKeyChange, onVerify],
+    [onApiKeyChange, onVerify],
   );
 
   // 失焦时自动保存并触发远程验证
@@ -116,6 +146,19 @@ export function ApiKeySection({
     },
     [commitInputValue],
   );
+
+  useEffect(() => {
+    return (): void => {
+      const latestDraftValue = draftValueRef.current;
+      if (latestDraftValue === null) {
+        return;
+      }
+
+      commitInputValue(latestDraftValue, {
+        updateLocalState: false,
+      });
+    };
+  }, [commitInputValue]);
 
   const displayError = validationError ?? (hasLocalChanges ? null : error);
   const displayErrorMessage = displayError ? messages.apiKeyErrors[displayError] : null;
@@ -153,18 +196,18 @@ export function ApiKeySection({
               event.preventDefault();
             }}
             onClick={handleVisibilityToggle}
-              aria-pressed={isApiKeyVisibleInInput}
-              aria-label={
-                isApiKeyVisibleInInput
-                  ? messages.settings.sections.apiKey.hide
-                  : messages.settings.sections.apiKey.show
-              }
-              title={
-                isApiKeyVisibleInInput
-                  ? messages.settings.sections.apiKey.hide
-                  : messages.settings.sections.apiKey.show
-              }
-            >
+            aria-pressed={isApiKeyVisibleInInput}
+            aria-label={
+              isApiKeyVisibleInInput
+                ? messages.settings.sections.apiKey.hide
+                : messages.settings.sections.apiKey.show
+            }
+            title={
+              isApiKeyVisibleInInput
+                ? messages.settings.sections.apiKey.hide
+                : messages.settings.sections.apiKey.show
+            }
+          >
             {isApiKeyVisibleInInput ? (
               <svg
                 className="api-key-section__visibility-icon"

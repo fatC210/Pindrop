@@ -60,6 +60,50 @@ const ARCTIC_CONTEXT: LocationContext = {
   economicLevel: 0.1,
 };
 
+/** 北京 — 城市中心，白天 */
+const BEIJING_CONTEXT: LocationContext = {
+  cityName: 'Beijing',
+  regionName: 'Xicheng District',
+  countryName: 'China',
+  regionType: 'city_center',
+  coordinates: [39.9042, 116.4074],
+  primaryLanguage: 'zh',
+  languageVariant: 'zh-CN',
+  secondaryLanguages: [],
+  timezone: 'Asia/Shanghai',
+  currentLocalHour: 10,
+  timeSlot: 'day',
+  cultureRegion: 'east_asia',
+  dominantReligion: 'none',
+  urbanDensity: 0.95,
+  terrain: 'plain',
+  nearWater: null,
+  climate: 'temperate',
+  economicLevel: 0.9,
+};
+
+/** 桂林 — 临河城市，白天 */
+const GUILIN_CONTEXT: LocationContext = {
+  cityName: 'Guilin',
+  regionName: 'Guangxi',
+  countryName: 'China',
+  regionType: 'city_center',
+  coordinates: [25.2742, 110.2964],
+  primaryLanguage: 'zh',
+  languageVariant: 'zh-CN',
+  secondaryLanguages: [],
+  timezone: 'Asia/Shanghai',
+  currentLocalHour: 16,
+  timeSlot: 'day',
+  cultureRegion: 'east_asia',
+  dominantReligion: 'none',
+  urbanDensity: 0.7,
+  terrain: 'river',
+  nearWater: 'river',
+  climate: 'temperate',
+  economicLevel: 0.73,
+};
+
 /** 海洋 — 大西洋，黎明 */
 const OCEAN_CONTEXT: LocationContext = {
   cityName: '',
@@ -298,6 +342,57 @@ describe('generateRecipe', () => {
     expect(recipe.layers.signature.prompt).toContain('Paris');
     expect(recipe.layers.signature.prompt).not.toBe('street_musician');
     expect(recipe.layers.signature.prompt).toContain('everyday sound');
+  });
+
+  it('Beijing should inject place-specific anchors into ambient and signature prompts', () => {
+    const recipe = generateRecipe(BEIJING_CONTEXT);
+
+    expect(recipe.layers.ambient.prompt).toContain('bing tang hu lu');
+    expect(recipe.layers.ambient.prompt).toContain('xiangqi');
+    expect(recipe.layers.signature.prompt).toContain('candied hawthorn skewers');
+    expect(recipe.layers.atmosphere.prompt).toContain('Beijing park and hutong textures');
+  });
+
+  it('Guilin should prioritize river rowing and waterwheel anchors in prompts', () => {
+    const recipe = generateRecipe(GUILIN_CONTEXT);
+
+    expect(recipe.layers.ambient.prompt).toContain('Li River');
+    expect(recipe.layers.ambient.prompt).toContain('waterwheel');
+    expect(recipe.layers.signature.prompt).toContain('Guilin river water');
+    expect(recipe.layers.atmosphere.prompt).toContain('Guilin riverside karst-water textures');
+  });
+
+  it('should incorporate optional LLM narrative anchors into the recipe prompts', () => {
+    const recipe = generateRecipe(PARIS_CONTEXT, {
+      narrativeAnchors: {
+        source: 'llm',
+        confidence: 0.81,
+        cues: [
+          {
+            prompt: 'bookstalls opening along the riverside and paper sleeves rustling',
+            label: {
+              en: 'riverside bookstalls',
+              'zh-CN': '河边旧书摊翻动声',
+            },
+          },
+        ],
+        signature: {
+          prompt: 'one bookseller sliding a box of paperbacks onto a folding stand',
+          label: {
+            en: 'paperbacks on a folding stand',
+            'zh-CN': '纸质书本放上折叠书架声',
+          },
+        },
+        atmosphereTone: 'riverside bookseller textures',
+        specificityInstruction:
+          'Lean into the riverside bookseller routine and avoid generic cafe-only cues.',
+      },
+    });
+
+    expect(recipe.narrativeAnchors?.source).toBe('llm');
+    expect(recipe.layers.ambient.prompt).toContain('bookstalls opening along the riverside');
+    expect(recipe.layers.signature.prompt).toContain('bookseller sliding a box of paperbacks');
+    expect(recipe.layers.atmosphere.prompt).toContain('riverside bookseller textures');
   });
 
   // --- 无对话区域静默规则 ---

@@ -10,9 +10,10 @@ describe('nominatim localization helpers', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  it('requests English names for the canonical reverse geocode flow', async () => {
+  it('omits the custom User-Agent header in browser runtime requests', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -28,10 +29,40 @@ describe('nominatim localization helpers', () => {
 
     await reverseGeocode(48.8566, 2.3522);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('accept-language=en'),
-      expect.any(Object)
-    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('accept-language=en');
+    expect(options.signal).toBeInstanceOf(AbortSignal);
+    expect(options.headers).toBeUndefined();
+  });
+
+  it('keeps the custom User-Agent header for server-side requests', async () => {
+    vi.stubGlobal('window', undefined);
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        display_name: 'Paris, France',
+        address: {
+          city: 'Paris',
+          country: 'France',
+        },
+      }),
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await reverseGeocode(48.8566, 2.3522);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('accept-language=en');
+    expect(options.signal).toBeInstanceOf(AbortSignal);
+    expect(options.headers).toEqual({
+      'User-Agent': 'PinDrop/1.0 (https://github.com/pindrop/pindrop)',
+    });
   });
 
   it('returns localized place names for Chinese UI labels', async () => {

@@ -57,19 +57,35 @@ vi.mock('next/dynamic', () => ({
     function MockMapView({
       markers = [],
       focusedCoordinates = null,
+      onMarkerSelect,
     }: {
-      markers?: Array<{ id: string }>;
+      markers?: Array<{ id: string; cacheKey?: string | null }>;
       focusedCoordinates?: [number, number] | null;
+      onMarkerSelect?: (cacheKey: string) => void;
     }): React.JSX.Element {
       return (
-        <div
-          data-testid="map-view"
-          data-marker-count={String(markers.length)}
-          data-marker-ids={markers.map((marker) => marker.id).join(',')}
-          data-focused-coordinates={
-            focusedCoordinates ? focusedCoordinates.join(',') : ''
-          }
-        />
+        <div>
+          <div
+            data-testid="map-view"
+            data-marker-count={String(markers.length)}
+            data-marker-ids={markers.map((marker) => marker.id).join(',')}
+            data-focused-coordinates={
+              focusedCoordinates ? focusedCoordinates.join(',') : ''
+            }
+          />
+          {markers
+            .filter((marker) => typeof marker.cacheKey === 'string')
+            .map((marker) => (
+              <button
+                key={marker.id}
+                type="button"
+                data-testid={`map-marker-${marker.id}`}
+                onClick={() => onMarkerSelect?.(marker.cacheKey as string)}
+              >
+                marker-{marker.id}
+              </button>
+            ))}
+        </div>
       );
     },
 }));
@@ -100,6 +116,7 @@ function createSessionResult(
     handleCoordinateSelect: vi.fn().mockResolvedValue(undefined),
     handleMarkerSelect: vi.fn().mockResolvedValue(undefined),
     handleLocationSelect: vi.fn().mockResolvedValue(undefined),
+    deleteLocationEntry: vi.fn().mockResolvedValue(undefined),
     handleHoverPreview: vi.fn().mockResolvedValue(undefined),
     handleHoverEnd: vi.fn(),
     playLocation: vi.fn().mockResolvedValue(undefined),
@@ -163,6 +180,7 @@ describe('Home page history visibility', () => {
             statusLabel: 'Ready',
             errorMessage: null,
             isPlayable: true,
+            playbackDurationSeconds: 22,
           },
           {
             id: 'loading-job',
@@ -285,6 +303,7 @@ describe('Home page history visibility', () => {
             statusLabel: 'Ready',
             errorMessage: null,
             isPlayable: true,
+            playbackDurationSeconds: 22,
           },
         ],
         mapPins: [
@@ -304,6 +323,7 @@ describe('Home page history visibility', () => {
     const readyCard = screen.getByText('Paris, France').closest('article');
     expect(readyCard).not.toBeNull();
     expect(within(readyCard as HTMLElement).queryByText('100%')).toBeNull();
+    expect(within(readyCard as HTMLElement).getByText('0:00 / 0:22')).not.toBeNull();
     expect(within(readyCard as HTMLElement).getByRole('button', { name: 'Play' })).not.toBeNull();
   });
 
@@ -347,6 +367,55 @@ describe('Home page history visibility', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Play' }));
 
     expect(handleLocationSelect).toHaveBeenCalledWith('ready-cache');
+  });
+
+  test('deletes a location entry from its card action', () => {
+    const deleteLocationEntry = vi.fn().mockResolvedValue(undefined);
+
+    mockUseSoundscapeSession.mockReturnValue(
+      createSessionResult({
+        hasConfiguredApiKey: true,
+        deleteLocationEntry,
+        locationEntries: [
+          {
+            id: 'ready-cache',
+            cacheKey: 'ready-cache',
+            coordinates: [48.8566, 2.3522],
+            cityName: 'Paris',
+            countryName: 'France',
+            timeSlot: 'day',
+            createdAt: 1,
+            progress: 100,
+            status: 'ready',
+            statusLabel: 'Ready',
+            errorMessage: null,
+            isPlayable: true,
+            playbackDurationSeconds: 22,
+          },
+        ],
+        mapPins: [
+          {
+            id: 'ready-cache',
+            cacheKey: 'ready-cache',
+            coordinates: [48.8566, 2.3522],
+            isGenerating: false,
+            isSelectable: true,
+          },
+        ],
+      }),
+    );
+
+    renderHome();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(deleteLocationEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'ready-cache',
+        cacheKey: 'ready-cache',
+        status: 'ready',
+      }),
+    );
   });
 
   test('shows a playback progress bar and a pause button while a location is playing', () => {
@@ -406,6 +475,65 @@ describe('Home page history visibility', () => {
 
     expect(pausePlayback).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
+  });
+
+  test('clicking a map marker scrolls the matching location card into view and starts playback', () => {
+    const handleMarkerSelect = vi.fn().mockResolvedValue(undefined);
+    const scrollIntoViewMock = vi.fn();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+
+    mockUseSoundscapeSession.mockReturnValue(
+      createSessionResult({
+        hasConfiguredApiKey: true,
+        handleMarkerSelect,
+        locationEntries: [
+          {
+            id: 'ready-cache',
+            cacheKey: 'ready-cache',
+            coordinates: [48.8566, 2.3522],
+            cityName: 'Paris',
+            countryName: 'France',
+            timeSlot: 'day',
+            createdAt: 1,
+            progress: 100,
+            status: 'ready',
+            statusLabel: 'Ready',
+            errorMessage: null,
+            isPlayable: true,
+            playbackDurationSeconds: 22,
+          },
+        ],
+        mapPins: [
+          {
+            id: 'ready-cache',
+            cacheKey: 'ready-cache',
+            coordinates: [48.8566, 2.3522],
+            isGenerating: false,
+            isSelectable: true,
+          },
+        ],
+      }),
+    );
+
+    try {
+      renderHome();
+
+      fireEvent.click(screen.getByTestId('map-marker-ready-cache'));
+
+      expect(handleMarkerSelect).toHaveBeenCalledWith('ready-cache');
+      expect(screen.getByTestId('map-view').getAttribute('data-focused-coordinates')).toBe(
+        '48.8566,2.3522',
+      );
+      expect(scrollIntoViewMock).toHaveBeenCalledTimes(1);
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      });
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    }
   });
 
   test('focuses the map on a location when its card is clicked', () => {

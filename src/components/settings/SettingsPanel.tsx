@@ -15,9 +15,14 @@ import type {
   VerificationResult,
   ApiKeyErrorCode,
 } from './types';
-import { preferencesStore, retrieveApiKey } from './preferencesStore';
+import {
+  preferencesStore,
+  retrieveApiKey,
+  retrieveLlmApiKey,
+} from './preferencesStore';
 import { normalizeApiKey, verifyApiKey } from './apiKeyUtils';
 import { ApiKeySection } from './ApiKeySection';
+import { LlmSection } from './LlmSection';
 import { PlaybackSection } from './PlaybackSection';
 import './SettingsPanel.css';
 
@@ -35,6 +40,7 @@ export function SettingsPanel({
     typeof window !== 'undefined' && !preferencesStore.isLocalStorageAvailable();
 
   const [apiKey, setApiKey] = useState<string>(() => retrieveApiKey() ?? '');
+  const [llmApiKey, setLlmApiKey] = useState<string>(() => retrieveLlmApiKey() ?? '');
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [apiKeyError, setApiKeyError] = useState<ApiKeyErrorCode | null>(null);
@@ -130,6 +136,32 @@ export function SettingsPanel({
     savePreferences(updated);
   }
 
+  function handleLlmBaseUrlChange(baseUrl: string): void {
+    const updated = {
+      ...preferences,
+      llmEnhancement: {
+        ...preferences.llmEnhancement,
+        baseUrl,
+      },
+    };
+    savePreferences(updated);
+  }
+
+  function handleLlmModelChange(model: string): void {
+    const updated = {
+      ...preferences,
+      llmEnhancement: {
+        ...preferences.llmEnhancement,
+        model,
+      },
+    };
+    savePreferences(updated);
+  }
+
+  function handleLlmApiKeyChange(nextApiKey: string): void {
+    setLlmApiKey(nextApiKey);
+  }
+
   const announceFromEffect = useEffectEvent((message: string) => {
     announce(message);
   });
@@ -165,6 +197,7 @@ export function SettingsPanel({
     const syncPreferencesTimer = window.setTimeout(() => {
       setPreferences(preferencesStore.loadPreferences());
       setApiKey(retrieveApiKey() ?? '');
+      setLlmApiKey(retrieveLlmApiKey() ?? '');
       setVerificationResult(null);
       setApiKeyError(null);
     }, 0);
@@ -233,7 +266,6 @@ export function SettingsPanel({
         role="dialog"
         aria-modal="false"
         aria-label={messages.settings.panelTitle}
-        data-anchor-active={anchorRef?.current ? 'true' : 'false'}
       >
         <button
           type="button"
@@ -275,6 +307,16 @@ export function SettingsPanel({
             isVerifying={isVerifying}
             verificationResult={verificationResult}
             error={apiKeyError}
+            compact
+          />
+
+          <LlmSection
+            baseUrl={preferences.llmEnhancement.baseUrl}
+            model={preferences.llmEnhancement.model}
+            apiKey={llmApiKey}
+            onBaseUrlChange={handleLlmBaseUrlChange}
+            onModelChange={handleLlmModelChange}
+            onApiKeyChange={handleLlmApiKeyChange}
             compact
           />
 

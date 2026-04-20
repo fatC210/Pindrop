@@ -1,14 +1,18 @@
 import type { AppLocale } from '@/i18n/types';
 import type { LocationContext, RegionType, WaterType } from '@/types/locationContext';
+import type {
+  NarrativeAnchorCue,
+  SoundscapeNarrativeAnchors,
+} from '@/types/soundscapeRecipe';
 
-interface LocalizedLabel {
-  en: string;
-  'zh-CN': string;
-}
+export type SoundCue = NarrativeAnchorCue;
 
-export interface SoundCue {
-  prompt: string;
-  label: LocalizedLabel;
+interface PlaceSoundAnchor {
+  aliases: string[];
+  countries?: string[];
+  cues: SoundCue[];
+  signature?: SoundCue;
+  atmosphereTone?: string;
 }
 
 const REGION_PLACE_DESCRIPTORS: Record<RegionType, string> = {
@@ -160,12 +164,14 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   ],
   east_asia: [
     {
-      prompt: 'shop door chimes, bicycle freewheels, and low storefront routine',
-      label: { en: 'shop chimes and bicycles', 'zh-CN': '店门铃与单车滑行声' },
+      prompt:
+        'park-edge conversation, folding stools or chairs, and storefront routine matched to the exact block',
+      label: { en: 'park-side talk and storefront routine', 'zh-CN': '公园边闲谈与沿街日常声' },
     },
     {
-      prompt: 'crosswalk beeps or station-adjacent cues used lightly and realistically',
-      label: { en: 'subtle crossing signals', 'zh-CN': '轻微的人行提示音' },
+      prompt:
+        'street-side food preparation, light utensil handling, or crossing cues only when they truly belong to the street',
+      label: { en: 'street-side prep and precise local cues', 'zh-CN': '街边备餐与更贴地的本地提示声' },
     },
   ],
   south_asia: [
@@ -288,8 +294,9 @@ const CULTURE_SIGNATURES: Record<string, SoundCue> = {
     label: { en: 'a passing tram bell', 'zh-CN': '掠过街道的电车铃声' },
   },
   east_asia: {
-    prompt: 'a modest storefront chime with a bicycle rolling past seconds later',
-    label: { en: 'a storefront chime and bicycle', 'zh-CN': '店门铃与单车掠过声' },
+    prompt:
+      'one brief everyday detail such as food-stall utensil handling, park-side chatter, or another exact neighborhood sound that fits the street',
+    label: { en: 'one exact neighborhood detail', 'zh-CN': '一个贴合街区的日常细节声' },
   },
   south_asia: {
     prompt: 'tea glasses meeting lightly beside a passing scooter',
@@ -340,6 +347,63 @@ const CULTURE_SIGNATURES: Record<string, SoundCue> = {
     label: { en: 'one realistic local detail', 'zh-CN': '一个真实的本地细节声' },
   },
 };
+
+const PLACE_SOUND_ANCHORS: PlaceSoundAnchor[] = [
+  {
+    aliases: ['beijing', '北京市'],
+    countries: ['china', '中国'],
+    cues: [
+      {
+        prompt:
+          'a Beijing street vendor calling out for candied hawthorn skewers, the familiar "bing tang hu lu" cry drifting through a hutong-side lane or park entrance',
+        label: { en: 'a candied hawthorn vendor call', 'zh-CN': '冰糖葫芦叫卖声' },
+      },
+      {
+        prompt:
+          'older men laughing, commenting, and tapping xiangqi pieces on a park-side table',
+        label: { en: 'park-side xiangqi laughter', 'zh-CN': '公园里下象棋的笑谈声' },
+      },
+      {
+        prompt:
+          'thermos lids, folding chairs, and slow park footsteps around a Beijing neighborhood park',
+        label: { en: 'park thermos and chair movement', 'zh-CN': '公园里暖壶、折叠椅与脚步声' },
+      },
+    ],
+    signature: {
+      prompt:
+        'a familiar Beijing hawker cry for candied hawthorn skewers passing once at natural street distance',
+      label: { en: 'a Beijing candied hawthorn call', 'zh-CN': '一声北京冰糖葫芦叫卖' },
+    },
+    atmosphereTone: 'Beijing park and hutong textures',
+  },
+  {
+    aliases: ['guilin', '桂林'],
+    countries: ['china', '中国'],
+    cues: [
+      {
+        prompt:
+          'wooden oars dipping and pulling through the Li River beside a small local boat',
+        label: { en: 'wooden oars on the Li River', 'zh-CN': '木桨划过漓江水声' },
+      },
+      {
+        prompt:
+          'a riverside waterwheel turning with rhythmic splashes and soft wooden creaks',
+        label: { en: 'a riverside waterwheel flow', 'zh-CN': '水风车转动与流水声' },
+      },
+      {
+        prompt:
+          'soft boatman calls and gentle passenger movement on the river kept natural and unhurried',
+        label: { en: 'soft boatman calls on the river', 'zh-CN': '江面轻微的船家招呼声' },
+      },
+    ],
+    signature: {
+      prompt:
+        'one close wooden oar stroke cutting through Guilin river water with a natural splash',
+      label: { en: 'a close Guilin oar stroke', 'zh-CN': '一声贴近的桂林划桨声' },
+    },
+    atmosphereTone: 'Guilin riverside karst-water textures',
+  },
+];
 
 const WATER_CUES: Record<WaterType, SoundCue> = {
   sea: {
@@ -392,6 +456,44 @@ function dedupeCues(cues: SoundCue[]): SoundCue[] {
   }
 
   return result;
+}
+
+function normalizeMatchText(value: string | undefined): string {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function getContextMatchTexts(context: LocationContext): string[] {
+  return [context.cityName, context.regionName, context.countryName]
+    .map((value) => normalizeMatchText(value))
+    .filter((value): value is string => value.length > 0);
+}
+
+function matchAlias(matchTexts: string[], alias: string): boolean {
+  const normalizedAlias = normalizeMatchText(alias);
+  return normalizedAlias.length > 0 && matchTexts.some((text) => text.includes(normalizedAlias));
+}
+
+function getPlaceSoundAnchor(context: LocationContext): PlaceSoundAnchor | null {
+  const matchTexts = getContextMatchTexts(context);
+
+  for (const anchor of PLACE_SOUND_ANCHORS) {
+    const hasAliasMatch = anchor.aliases.some((alias) => matchAlias(matchTexts, alias));
+    if (!hasAliasMatch) {
+      continue;
+    }
+
+    if (!anchor.countries || anchor.countries.some((country) => matchAlias(matchTexts, country))) {
+      return anchor;
+    }
+  }
+
+  return null;
+}
+
+function getProvidedNarrativeCues(
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
+): SoundCue[] {
+  return narrativeAnchors?.cues ?? [];
 }
 
 function isEverydayCultureRegion(regionType: RegionType): boolean {
@@ -533,12 +635,27 @@ export function getPromptPlaceDescriptor(context: LocationContext): string {
   return `${locationName}, ${regionDescriptor}${waterSuffix}`;
 }
 
-export function getSelectedSoundCues(context: LocationContext): SoundCue[] {
+export function getSelectedSoundCues(
+  context: LocationContext,
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
+): SoundCue[] {
+  const providedCues = getProvidedNarrativeCues(narrativeAnchors);
+  const placeCues = getPlaceSoundAnchor(context)?.cues ?? [];
   const regionCues = REGION_CUES[context.regionType] ?? REGION_CUES.rural;
   const cultureCues = isEverydayCultureRegion(context.regionType)
     ? (CULTURE_CUES[context.cultureRegion] ?? CULTURE_CUES.unknown)
     : [];
   const waterCue = context.nearWater ? [WATER_CUES[context.nearWater]] : [];
+
+  if (placeCues.length > 0 || providedCues.length > 0) {
+    return dedupeCues([
+      ...placeCues,
+      ...providedCues,
+      ...waterCue,
+      ...regionCues,
+      ...cultureCues,
+    ]).slice(0, 3);
+  }
 
   const ordered = isEverydayCultureRegion(context.regionType)
     ? interleaveEverydayCues(regionCues, cultureCues, waterCue)
@@ -547,21 +664,64 @@ export function getSelectedSoundCues(context: LocationContext): SoundCue[] {
   return dedupeCues(ordered).slice(0, 3);
 }
 
-export function getSignatureCue(context: LocationContext): SoundCue {
+export function getSignatureCue(
+  context: LocationContext,
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
+): SoundCue {
+  const placeAnchor = getPlaceSoundAnchor(context);
+
   return (
+    placeAnchor?.signature ??
+    placeAnchor?.cues[0] ??
+    narrativeAnchors?.signature ??
+    narrativeAnchors?.cues[0] ??
     CULTURE_SIGNATURES[context.cultureRegion] ??
     (context.nearWater ? WATER_CUES[context.nearWater] : undefined) ??
-    getSelectedSoundCues(context)[0] ??
+    getSelectedSoundCues(context, narrativeAnchors)[0] ??
     REGION_CUES.rural[0]
   );
 }
 
-export function getCulturalAtmosphereTone(context: LocationContext): string {
+export function getCulturalAtmosphereTone(
+  context: LocationContext,
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
+): string {
+  const placeAnchor = getPlaceSoundAnchor(context);
+
+  if (placeAnchor?.atmosphereTone) {
+    return placeAnchor.atmosphereTone;
+  }
+
+  if (narrativeAnchors?.atmosphereTone) {
+    return narrativeAnchors.atmosphereTone;
+  }
+
   return CULTURAL_ATMOSPHERE_TONES[context.cultureRegion] ?? 'local acoustic colors';
 }
 
-export function getSoundSummary(context: LocationContext, locale: AppLocale): string {
-  const cues = getSelectedSoundCues(context);
+export function getPromptSpecificityInstruction(
+  context: LocationContext,
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
+): string {
+  const locationName = getSummaryLocationName(context);
+
+  if (narrativeAnchors?.specificityInstruction) {
+    return narrativeAnchors.specificityInstruction;
+  }
+
+  if (getPlaceSoundAnchor(context)) {
+    return `Prioritize the concrete local anchors above so the scene is recognisably ${locationName}, not just a generic ${context.cultureRegion.replace(/_/g, ' ')} setting.`;
+  }
+
+  return `Favor the kind of everyday detail that residents of ${locationName} would recognize immediately, and avoid falling back to generic regional stock sounds.`;
+}
+
+export function getSoundSummary(
+  context: LocationContext,
+  locale: AppLocale,
+  narrativeAnchors?: SoundscapeNarrativeAnchors | null
+): string {
+  const cues = getSelectedSoundCues(context, narrativeAnchors);
   const locationName = getSummaryLocationName(context);
   const settingLabel = getSummarySettingLabel(context, locale);
 

@@ -7,7 +7,11 @@
 
 import { DEFAULT_LOCALE, isAppLocale } from '@/i18n/types';
 import { normalizeApiKey } from './apiKeyUtils';
-import type { UserPreferences, FadeInDuration } from './types';
+import type {
+  UserPreferences,
+  FadeInDuration,
+  LlmEnhancementSettings,
+} from './types';
 
 // ---------------------------------------------------------------------------
 // Storage key constants
@@ -18,6 +22,9 @@ export const PREFERENCES_KEY = 'pindrop_preferences';
 
 /** localStorage key for the ElevenLabs API key */
 export const API_KEY_KEY = 'pindrop_api_key';
+
+/** localStorage key for the optional OpenAI-compatible LLM API key */
+export const LLM_API_KEY_KEY = 'pindrop_llm_api_key';
 
 /** Custom window event dispatched when settings-related local state changes. */
 export const PREFERENCES_UPDATED_EVENT = 'pindrop:preferences-updated';
@@ -54,6 +61,10 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
     secondaryDialogue: 0.5,
     atmosphere: 0.4,
   },
+  llmEnhancement: {
+    baseUrl: '',
+    model: '',
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -79,6 +90,35 @@ function validateFadeInDuration(value: unknown): FadeInDuration {
   return 1.5;
 }
 
+function normalizeBaseUrl(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim().replace(/\/+$/, '');
+}
+
+function normalizeModelName(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim();
+}
+
+function validateLlmEnhancementSettings(value: unknown): LlmEnhancementSettings {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ...DEFAULT_PREFERENCES.llmEnhancement };
+  }
+
+  const candidate = value as Partial<LlmEnhancementSettings>;
+
+  return {
+    baseUrl: normalizeBaseUrl(candidate.baseUrl),
+    model: normalizeModelName(candidate.model),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // validatePreferences
 // ---------------------------------------------------------------------------
@@ -102,7 +142,11 @@ function validateFadeInDuration(value: unknown): FadeInDuration {
 export function validatePreferences(preferences: unknown): UserPreferences {
   // If the input is not an object (or is null/array), return full defaults
   if (typeof preferences !== 'object' || preferences === null || Array.isArray(preferences)) {
-    return { ...DEFAULT_PREFERENCES, layerVolumes: { ...DEFAULT_PREFERENCES.layerVolumes } };
+    return {
+      ...DEFAULT_PREFERENCES,
+      layerVolumes: { ...DEFAULT_PREFERENCES.layerVolumes },
+      llmEnhancement: { ...DEFAULT_PREFERENCES.llmEnhancement },
+    };
   }
 
   const prefs = preferences as Partial<UserPreferences>;
@@ -124,6 +168,7 @@ export function validatePreferences(preferences: unknown): UserPreferences {
       secondaryDialogue: validateVolume(layerVolumes?.secondaryDialogue, 0.5),
       atmosphere: validateVolume(layerVolumes?.atmosphere, 0.4),
     },
+    llmEnhancement: validateLlmEnhancementSettings(prefs.llmEnhancement),
   };
 }
 
@@ -210,7 +255,11 @@ export class PreferencesStore {
    * @returns A fresh copy of DEFAULT_PREFERENCES
    */
   getDefaultPreferences(): UserPreferences {
-    return { ...DEFAULT_PREFERENCES, layerVolumes: { ...DEFAULT_PREFERENCES.layerVolumes } };
+    return {
+      ...DEFAULT_PREFERENCES,
+      layerVolumes: { ...DEFAULT_PREFERENCES.layerVolumes },
+      llmEnhancement: { ...DEFAULT_PREFERENCES.llmEnhancement },
+    };
   }
 }
 
@@ -270,4 +319,72 @@ export function clearApiKey(): void {
   } catch (error) {
     console.error('[PinDrop Error] Failed to clear API key:', error);
   }
+}
+
+/**
+ * Stores the OpenAI-compatible LLM API key in localStorage.
+ */
+export function storeLlmApiKey(apiKey: string): void {
+  try {
+    localStorage.setItem(LLM_API_KEY_KEY, normalizeApiKey(apiKey));
+    dispatchPreferencesUpdated();
+  } catch {
+    console.error('[PinDrop Error] Failed to store LLM API key');
+  }
+}
+
+/**
+ * Retrieves the stored OpenAI-compatible LLM API key.
+ */
+export function retrieveLlmApiKey(): string | null {
+  try {
+    const storedApiKey = localStorage.getItem(LLM_API_KEY_KEY);
+    if (!storedApiKey) {
+      return storedApiKey;
+    }
+
+    return normalizeApiKey(storedApiKey);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Removes the stored OpenAI-compatible LLM API key.
+ */
+export function clearLlmApiKey(): void {
+  try {
+    localStorage.removeItem(LLM_API_KEY_KEY);
+    dispatchPreferencesUpdated();
+  } catch (error) {
+    console.error('[PinDrop Error] Failed to clear LLM API key:', error);
+  }
+}
+
+export interface LlmEnhancementConfig extends LlmEnhancementSettings {
+  apiKey: string;
+}
+
+/**
+ * Returns the optional OpenAI-compatible LLM configuration when all required
+ * fields are present. Otherwise returns null and the app falls back to the
+ * built-in rule-based prompts.
+ */
+export function getLlmEnhancementConfig(): LlmEnhancementConfig | null {
+  const preferences = preferencesStore.loadPreferences();
+  const apiKey = retrieveLlmApiKey();
+
+  if (
+    !preferences.llmEnhancement.baseUrl ||
+    !preferences.llmEnhancement.model ||
+    !apiKey
+  ) {
+    return null;
+  }
+
+  return {
+    baseUrl: normalizeBaseUrl(preferences.llmEnhancement.baseUrl),
+    model: normalizeModelName(preferences.llmEnhancement.model),
+    apiKey,
+  };
 }

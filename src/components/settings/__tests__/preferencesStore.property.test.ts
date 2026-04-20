@@ -11,7 +11,12 @@ import {
   validatePreferences,
   PreferencesStore,
 } from '../preferencesStore';
-import type { UserPreferences, FadeInDuration, MapTheme } from '../types';
+import type {
+  UserPreferences,
+  FadeInDuration,
+  MapTheme,
+  LlmEnhancementSettings,
+} from '../types';
 import type { AppLocale } from '@/i18n/types';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +53,10 @@ const userPreferencesArb: fc.Arbitrary<UserPreferences> = fc.record({
     secondaryDialogue: fc.double({ min: 0, max: 1, noNaN: true, noDefaultInfinity: true }),
     atmosphere: fc.double({ min: 0, max: 1, noNaN: true, noDefaultInfinity: true }),
   }),
+  llmEnhancement: fc.record({
+    baseUrl: fc.string({ maxLength: 80 }),
+    model: fc.string({ maxLength: 40 }),
+  }) as fc.Arbitrary<LlmEnhancementSettings>,
 });
 
 // ---------------------------------------------------------------------------
@@ -191,6 +200,11 @@ describe('Property 9: 偏好设置往返一致性', () => {
           for (const key of LAYER_VOLUME_KEYS) {
             expect(loaded.layerVolumes[key]).toBe(prefs.layerVolumes[key]);
           }
+
+          expect(loaded.llmEnhancement.baseUrl).toBe(
+            prefs.llmEnhancement.baseUrl.trim().replace(/\/+$/, ''),
+          );
+          expect(loaded.llmEnhancement.model).toBe(prefs.llmEnhancement.model.trim());
         },
       ),
       { numRuns: 100 },

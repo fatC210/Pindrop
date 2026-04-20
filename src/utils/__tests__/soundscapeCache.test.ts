@@ -227,6 +227,33 @@ describe('Soundscape Cache - Unit Tests', () => {
     });
   });
 
+  // ─── deleteCachedSoundscape ──────────────────────────────────────────────
+
+  describe('deleteCachedSoundscape', () => {
+    test('删除指定缓存条目', async () => {
+      const { deleteCachedSoundscape } = await import('../soundscapeCache');
+      mockDelete.mockResolvedValue(undefined);
+
+      await deleteCachedSoundscape('48.86,2.35-dawn');
+
+      expect(mockDelete).toHaveBeenCalledWith('soundscape_cache', '48.86,2.35-dawn');
+    });
+
+    test('删除失败时记录错误日志但不抛出异常', async () => {
+      const { deleteCachedSoundscape } = await import('../soundscapeCache');
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const dbError = new Error('Delete failed');
+      mockDelete.mockRejectedValue(dbError);
+
+      await expect(deleteCachedSoundscape('bad-key')).resolves.toBeUndefined();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[PinDrop Error] Failed to delete cached soundscape:',
+        dbError
+      );
+    });
+  });
+
   // ─── updatePlayStats ─────────────────────────────────────────────────────
 
   describe('updatePlayStats', () => {

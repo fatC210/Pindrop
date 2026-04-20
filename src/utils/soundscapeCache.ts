@@ -11,6 +11,7 @@ export interface CachedSoundscape {
   playCount: number;
   lastPlayedAt: number;
   sizeBytes: number;
+  playbackDurationSeconds?: number;
   audioBlobs?: {
     ambient?: Blob;
     signature?: Blob;
@@ -112,6 +113,18 @@ export async function getCachedMarkers(): Promise<CachedSoundscape[]> {
   } catch (error) {
     console.error('[PinDrop Error] Failed to get cached markers:', error);
     return [];
+  }
+}
+
+/**
+ * Delete a cached soundscape by cache key
+ */
+export async function deleteCachedSoundscape(cacheKey: string): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.delete('soundscape_cache', cacheKey);
+  } catch (error) {
+    console.error('[PinDrop Error] Failed to delete cached soundscape:', error);
   }
 }
 

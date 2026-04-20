@@ -35,6 +35,7 @@ export interface AppMessages {
       resume: string;
       pause: string;
       stop: string;
+      delete: string;
       regenerate: string;
       saveFavorite: string;
       removeFavorite: string;
@@ -82,6 +83,20 @@ export interface AppMessages {
         hide: string;
         verifying: string;
         valid: string;
+      };
+      llm: {
+        header: string;
+        description: string;
+        baseUrlLabel: string;
+        baseUrlPlaceholder: string;
+        modelLabel: string;
+        modelPlaceholder: string;
+        apiKeyLabel: string;
+        apiKeyPlaceholder: string;
+        show: string;
+        hide: string;
+        inactiveHint: string;
+        activeHint: string;
       };
       map: {
         header: string;
@@ -180,6 +195,7 @@ const EN_MESSAGES: AppMessages = {
       resume: 'Resume',
       pause: 'Pause',
       stop: 'Stop',
+      delete: 'Delete',
       regenerate: 'Regenerate',
       saveFavorite: 'Save favorite',
       removeFavorite: 'Remove favorite',
@@ -227,6 +243,21 @@ const EN_MESSAGES: AppMessages = {
         hide: 'Hide key',
         verifying: 'Verifying...',
         valid: 'Key valid',
+      },
+      llm: {
+        header: 'Optional LLM Enrichment',
+        description:
+          'Fill in an OpenAI-compatible request address, model, and API key to enrich sound cues for long-tail locations before audio generation.',
+        baseUrlLabel: 'Request address',
+        baseUrlPlaceholder: 'https://api.openai.com/v1',
+        modelLabel: 'Model',
+        modelPlaceholder: 'gpt-4.1-mini',
+        apiKeyLabel: 'LLM API Key',
+        apiKeyPlaceholder: 'sk-...',
+        show: 'Show key',
+        hide: 'Hide key',
+        inactiveHint: 'Leave any field blank to use the built-in prompt rules only.',
+        activeHint: 'When all three fields are set, PinDrop will request structured local sound anchors from your LLM.',
       },
       map: {
         header: 'Appearance',
@@ -345,6 +376,7 @@ const ZH_CN_MESSAGES: AppMessages = {
       resume: '继续',
       pause: '暂停',
       stop: '停止',
+      delete: '删除',
       regenerate: '重新生成',
       saveFavorite: '加入收藏',
       removeFavorite: '取消收藏',
@@ -392,6 +424,21 @@ const ZH_CN_MESSAGES: AppMessages = {
         hide: '隐藏',
         verifying: '验证中...',
         valid: '密钥有效',
+      },
+      llm: {
+        header: '可选 LLM 增强',
+        description:
+          '填写兼容 OpenAI 的请求地址、模型名和 API Key，在生成音频前为冷门地点补充更贴地的声音锚点。',
+        baseUrlLabel: '请求地址',
+        baseUrlPlaceholder: 'https://api.openai.com/v1',
+        modelLabel: '模型名',
+        modelPlaceholder: 'gpt-4.1-mini',
+        apiKeyLabel: 'LLM API Key',
+        apiKeyPlaceholder: 'sk-...',
+        show: '显示',
+        hide: '隐藏',
+        inactiveHint: '任意一项留空时，会自动回退到内置规则模板。',
+        activeHint: '三项都填写后，PinDrop 会先向你的 LLM 请求结构化的本地声音锚点，再生成声音景观。',
       },
       map: {
         header: '外观',

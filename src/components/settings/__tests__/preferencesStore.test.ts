@@ -10,11 +10,16 @@ import {
   DEFAULT_PREFERENCES,
   PREFERENCES_KEY,
   API_KEY_KEY,
+  LLM_API_KEY_KEY,
   validatePreferences,
   PreferencesStore,
   storeApiKey,
   retrieveApiKey,
   clearApiKey,
+  storeLlmApiKey,
+  retrieveLlmApiKey,
+  clearLlmApiKey,
+  getLlmEnhancementConfig,
 } from '../preferencesStore';
 import type { UserPreferences } from '../types';
 
@@ -26,6 +31,7 @@ function makeValidPreferences(overrides: Partial<UserPreferences> = {}): UserPre
   return {
     ...DEFAULT_PREFERENCES,
     layerVolumes: { ...DEFAULT_PREFERENCES.layerVolumes },
+    llmEnhancement: { ...DEFAULT_PREFERENCES.llmEnhancement },
     ...overrides,
   };
 }
@@ -50,6 +56,10 @@ describe('validatePreferences', () => {
         secondaryDialogue: 0.2,
         atmosphere: 0.1,
       },
+      llmEnhancement: {
+        baseUrl: 'https://example.com/v1/',
+        model: 'gpt-test',
+      },
     };
 
     const result = validatePreferences(input);
@@ -65,6 +75,8 @@ describe('validatePreferences', () => {
     expect(result.layerVolumes.dialogue).toBe(0.6);
     expect(result.layerVolumes.secondaryDialogue).toBe(0.2);
     expect(result.layerVolumes.atmosphere).toBe(0.1);
+    expect(result.llmEnhancement.baseUrl).toBe('https://example.com/v1');
+    expect(result.llmEnhancement.model).toBe('gpt-test');
   });
 
   test('invalid mapStyle falls back to "light"', () => {
@@ -173,6 +185,17 @@ describe('validatePreferences', () => {
   test('missing layerVolumes object falls back to all layer defaults', () => {
     const result = validatePreferences({ mapStyle: 'dark' });
     expect(result.layerVolumes).toEqual(DEFAULT_PREFERENCES.layerVolumes);
+  });
+
+  test('invalid llmEnhancement fields fall back to empty defaults', () => {
+    const result = validatePreferences({
+      llmEnhancement: {
+        baseUrl: 123,
+        model: null,
+      },
+    });
+
+    expect(result.llmEnhancement).toEqual(DEFAULT_PREFERENCES.llmEnhancement);
   });
 });
 
@@ -437,5 +460,55 @@ describe('storeApiKey / retrieveApiKey / clearApiKey', () => {
   test('uses the correct storage key (API_KEY_KEY)', () => {
     storeApiKey(KEYCHECK_API_KEY);
     expect(localStorage.getItem(API_KEY_KEY)).toBe(KEYCHECK_API_KEY);
+  });
+});
+
+describe('storeLlmApiKey / retrieveLlmApiKey / clearLlmApiKey / getLlmEnhancementConfig', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  test('round-trips the optional LLM API key', () => {
+    storeLlmApiKey('  sk-llm-test-key  ');
+    expect(retrieveLlmApiKey()).toBe('sk-llm-test-key');
+    expect(localStorage.getItem(LLM_API_KEY_KEY)).toBe('sk-llm-test-key');
+
+    clearLlmApiKey();
+    expect(retrieveLlmApiKey()).toBeNull();
+  });
+
+  test('returns a complete LLM enhancement config only when all fields are present', () => {
+    const store = new PreferencesStore();
+    store.savePreferences(
+      makeValidPreferences({
+        llmEnhancement: {
+          baseUrl: 'https://api.example.com/v1/',
+          model: 'gpt-4.1-mini',
+        },
+      }),
+    );
+    storeLlmApiKey('sk-llm-test-key');
+
+    expect(getLlmEnhancementConfig()).toEqual({
+      baseUrl: 'https://api.example.com/v1',
+      model: 'gpt-4.1-mini',
+      apiKey: 'sk-llm-test-key',
+    });
+  });
+
+  test('returns null when the optional LLM config is incomplete', () => {
+    const store = new PreferencesStore();
+    store.savePreferences(
+      makeValidPreferences({
+        llmEnhancement: {
+          baseUrl: 'https://api.example.com/v1',
+          model: '',
+        },
+      }),
+    );
+    storeLlmApiKey('sk-llm-test-key');
+
+    expect(getLlmEnhancementConfig()).toBeNull();
   });
 });
