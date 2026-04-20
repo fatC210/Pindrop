@@ -49,6 +49,14 @@ function formatLocationTitle(
   return joinLocationParts([regionName, cityName, countryName], locale);
 }
 
+function formatPlaybackTime(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
 export default function Home(): React.JSX.Element {
   const { locale, messages, setLocale } = useI18n();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -323,6 +331,16 @@ export default function Home(): React.JSX.Element {
                   : isPausedLocation
                     ? messages.home.actions.resume
                     : messages.home.actions.play;
+                const playbackProgressPercent = isActiveLocation
+                  ? Math.max(0, Math.min(100, session.playbackState.playbackProgress * 100))
+                  : 0;
+                const playbackPositionLabel = isActiveLocation
+                  ? formatPlaybackTime(session.playbackState.playbackPositionSeconds)
+                  : '0:00';
+                const playbackDurationLabel =
+                  isActiveLocation && session.playbackState.playbackDurationSeconds > 0
+                    ? formatPlaybackTime(session.playbackState.playbackDurationSeconds)
+                    : null;
 
                 return (
                   <article
@@ -345,9 +363,6 @@ export default function Home(): React.JSX.Element {
                               ? messages.enums.timeSlots[entry.timeSlot]
                               : pendingLocationLabel)}
                         </p>
-                        {entry.soundDescription ? (
-                          <p className={styles.locationSound}>{entry.soundDescription}</p>
-                        ) : null}
                       </div>
 
                       <span
@@ -362,6 +377,10 @@ export default function Home(): React.JSX.Element {
                         {statusLabel}
                       </span>
                     </div>
+
+                    {entry.soundDescription ? (
+                      <p className={styles.locationSound}>{entry.soundDescription}</p>
+                    ) : null}
 
                     {!isReadyEntry ? (
                       <div className={styles.progressRow}>
@@ -378,17 +397,25 @@ export default function Home(): React.JSX.Element {
                     ) : (
                       <div className={styles.playbackRow}>
                         <div
-                          className={`${styles.waveform}${
-                            isActiveLocation ? ` ${styles.waveformVisible}` : ''
-                          }${isPlayingLocation ? ` ${styles.waveformActive}` : ''}`}
+                          className={`${styles.playbackProgress}${
+                            isActiveLocation ? ` ${styles.playbackProgressVisible}` : ''
+                          }${isPlayingLocation ? ` ${styles.playbackProgressActive}` : ''}${
+                            isPausedLocation ? ` ${styles.playbackProgressPaused}` : ''
+                          }`}
                           aria-hidden="true"
-                          data-testid={`waveform-${entry.id}`}
+                          data-testid={`playback-progress-${entry.id}`}
                         >
-                          <span className={styles.waveformBar} />
-                          <span className={styles.waveformBar} />
-                          <span className={styles.waveformBar} />
-                          <span className={styles.waveformBar} />
+                          <span
+                            className={styles.playbackProgressFill}
+                            data-testid={`playback-progress-fill-${entry.id}`}
+                            style={{ width: `${playbackProgressPercent}%` }}
+                          />
                         </div>
+                        {playbackDurationLabel ? (
+                          <span className={styles.playbackTime}>
+                            {playbackPositionLabel} / {playbackDurationLabel}
+                          </span>
+                        ) : null}
                         <button
                           type="button"
                           className={styles.playbackIconButton}

@@ -40,6 +40,9 @@ const INITIAL_STATE: PlaybackStateInfo = {
   loadedLayers: [],
   failedLayers: [],
   errorMessage: null,
+  playbackPositionSeconds: 0,
+  playbackDurationSeconds: 0,
+  playbackProgress: 0,
 };
 
 /** useAudioPlayer hook 返回值类型 */

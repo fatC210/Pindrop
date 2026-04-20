@@ -47,6 +47,9 @@ const INITIAL_PLAYBACK_STATE: PlaybackStateInfo = {
   loadedLayers: [],
   failedLayers: [],
   errorMessage: null,
+  playbackPositionSeconds: 0,
+  playbackDurationSeconds: 0,
+  playbackProgress: 0,
 };
 
 interface GenerationJob {

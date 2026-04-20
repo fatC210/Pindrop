@@ -78,6 +78,9 @@ export interface PlaybackStateInfo {
   failedLayers: LayerType[];
   /** 错误信息（state 为 error 时） */
   errorMessage: string | null;
+  playbackPositionSeconds: number;
+  playbackDurationSeconds: number;
+  playbackProgress: number;
 }
 
 // === 音频加载结果 ===

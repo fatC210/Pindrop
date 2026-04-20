@@ -91,6 +91,9 @@ function createSessionResult(
       loadedLayers: [],
       failedLayers: [],
       errorMessage: null,
+      playbackPositionSeconds: 0,
+      playbackDurationSeconds: 0,
+      playbackProgress: 0,
     },
     activePlaybackLocationId: null,
     isAudioSupported: true,
@@ -346,7 +349,7 @@ describe('Home page history visibility', () => {
     expect(handleLocationSelect).toHaveBeenCalledWith('ready-cache');
   });
 
-  test('shows waveform and a pause button while a location is playing', () => {
+  test('shows a playback progress bar and a pause button while a location is playing', () => {
     const pausePlayback = vi.fn();
 
     mockUseSoundscapeSession.mockReturnValue(
@@ -360,6 +363,9 @@ describe('Home page history visibility', () => {
           loadedLayers: [],
           failedLayers: [],
           errorMessage: null,
+          playbackPositionSeconds: 27,
+          playbackDurationSeconds: 90,
+          playbackProgress: 0.3,
         },
         locationEntries: [
           {
@@ -391,7 +397,11 @@ describe('Home page history visibility', () => {
 
     renderHome();
 
-    expect(screen.getByTestId('waveform-ready-cache')).not.toBeNull();
+    expect(screen.getByTestId('playback-progress-ready-cache')).not.toBeNull();
+    expect(screen.getByTestId('playback-progress-fill-ready-cache')).toHaveStyle({
+      width: '30%',
+    });
+    expect(screen.getByText('0:27 / 1:30')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
 
     expect(pausePlayback).toHaveBeenCalledTimes(1);
