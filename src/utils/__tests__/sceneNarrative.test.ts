@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LocationContext } from '@/types/locationContext';
 import { getSelectedSoundCues, getSoundSummary } from '../soundscape/sceneNarrative';
+import type { SoundscapeNarrativeAnchors } from '@/types/soundscapeRecipe';
 
 const HANPU_CONTEXT: LocationContext = {
   cityName: '含浦街道',
@@ -123,5 +124,38 @@ describe('sceneNarrative', () => {
     expect(guilinCues[1]?.label['zh-CN']).toBe('水风车转动与流水声');
     expect(guilinSummary).toContain('木桨划过漓江水声');
     expect(guilinSummary).toContain('水风车转动与流水声');
+  });
+
+  it('prioritizes LLM-provided cues in the summary when no place-specific anchor overrides them', () => {
+    const llmAnchors: SoundscapeNarrativeAnchors = {
+      source: 'llm',
+      confidence: 0.9,
+      cues: [
+        {
+          prompt: 'bookstalls opening along the riverside and paper sleeves rustling',
+          label: { en: 'riverside bookstalls', 'zh-CN': '河边旧书摊翻动声' },
+        },
+        {
+          prompt: 'metal shutters lifting from a small morning market arcade',
+          label: { en: 'market arcade shutters', 'zh-CN': '清晨小市场卷闸门声' },
+        },
+      ],
+    };
+
+    const summary = getSoundSummary(
+      {
+        ...BAOAN_CONTEXT,
+        cityName: 'Kutaisi',
+        regionName: 'Imereti',
+        countryName: 'Georgia',
+        cultureRegion: 'eastern_europe',
+        nearWater: 'river',
+      },
+      'zh-CN',
+      llmAnchors
+    );
+
+    expect(summary).toContain('河边旧书摊翻动声');
+    expect(summary).toContain('清晨小市场卷闸门声');
   });
 });

@@ -648,9 +648,15 @@ export function getSelectedSoundCues(
   const waterCue = context.nearWater ? [WATER_CUES[context.nearWater]] : [];
 
   if (placeCues.length > 0 || providedCues.length > 0) {
+    const prioritizedNarrativeCues =
+      narrativeAnchors?.source === 'llm' ? providedCues : [];
+    const secondaryNarrativeCues =
+      narrativeAnchors?.source === 'llm' ? [] : providedCues;
+
     return dedupeCues([
+      ...prioritizedNarrativeCues,
       ...placeCues,
-      ...providedCues,
+      ...secondaryNarrativeCues,
       ...waterCue,
       ...regionCues,
       ...cultureCues,
@@ -669,8 +675,12 @@ export function getSignatureCue(
   narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): SoundCue {
   const placeAnchor = getPlaceSoundAnchor(context);
+  const preferNarrativeSignature =
+    narrativeAnchors?.source === 'llm' && !placeAnchor?.signature && !placeAnchor?.cues[0];
 
   return (
+    (preferNarrativeSignature ? narrativeAnchors?.signature : undefined) ??
+    (preferNarrativeSignature ? narrativeAnchors?.cues[0] : undefined) ??
     placeAnchor?.signature ??
     placeAnchor?.cues[0] ??
     narrativeAnchors?.signature ??

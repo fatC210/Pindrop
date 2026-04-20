@@ -642,6 +642,6 @@ describe('Home page history visibility', () => {
 
     renderHome();
 
-    expect(screen.getByText('西城区，北京市，中国')).not.toBeNull();
+    expect(screen.getByText('中国，北京市，西城区')).not.toBeNull();
   });
 });

@@ -46,7 +46,12 @@ function formatLocationTitle(
   const cityName = localizedLabel?.cityName ?? entry.cityName;
   const countryName = localizedLabel?.countryName ?? entry.countryName;
 
-  return joinLocationParts([regionName, cityName, countryName], locale);
+  return joinLocationParts(
+    locale === 'zh-CN'
+      ? [countryName, cityName, regionName]
+      : [regionName, cityName, countryName],
+    locale
+  );
 }
 
 function formatPlaybackTime(totalSeconds: number): string {

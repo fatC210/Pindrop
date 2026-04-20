@@ -1,5 +1,6 @@
 import { preferencesStore } from '@/components/settings/preferencesStore';
 import type { SoundscapeRecipe, DynamicEvent } from '@/types/soundscapeRecipe';
+import { DEFAULT_RENDER_DURATION_SECONDS } from '@/utils/elevenLabsClient';
 import { getEventPool } from '@/utils/soundscape/dynamicEventScheduler';
 import { AudioContextManager } from './audioContextManager';
 import { AudioLoader } from './audioLoader';
@@ -626,13 +627,12 @@ export class AudioPlayer {
   }
 
   private selectProgressDuration(): number {
-    const preferredLayers: LayerType[] = ['ambient', 'atmosphere'];
+    const loopingDurations = (LOOPING_LAYERS as readonly LayerType[])
+      .map((layerType) => this.decodedBuffers.get(layerType)?.duration ?? 0)
+      .filter((duration) => Number.isFinite(duration) && duration > 0);
 
-    for (const layerType of preferredLayers) {
-      const duration = this.decodedBuffers.get(layerType)?.duration ?? 0;
-      if (Number.isFinite(duration) && duration > 0) {
-        return duration;
-      }
+    if (loopingDurations.length > 0) {
+      return Math.max(DEFAULT_RENDER_DURATION_SECONDS, ...loopingDurations);
     }
 
     let fallbackDuration = 0;

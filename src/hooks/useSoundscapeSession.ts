@@ -125,6 +125,124 @@ function getSoundscapeSizeBytes(blobs: AudioBlobMap): number {
   return Object.values(blobs).reduce((total, blob) => total + (blob?.size ?? 0), 0);
 }
 
+const CONTINUOUS_BED_LAYERS: readonly LayerType[] = ['ambient', 'atmosphere'];
+const MIN_CONTINUOUS_BED_DURATION_SECONDS = Math.max(
+  8,
+  Math.floor(DEFAULT_RENDER_DURATION_SECONDS * 0.35)
+);
+const AUDIO_METADATA_TIMEOUT_MS = 1500;
+
+function isJsdomRuntime(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  return /jsdom/i.test(navigator.userAgent);
+}
+
+function hasContinuousBedBlob(
+  blobs: AudioBlobMap | CachedSoundscape['audioBlobs'] | null | undefined
+): boolean {
+  if (!blobs) {
+    return false;
+  }
+
+  return CONTINUOUS_BED_LAYERS.some((layerType) => blobs[layerType] instanceof Blob);
+}
+
+async function measureBlobDurationSeconds(blob: Blob): Promise<number | null> {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.Audio !== 'function' ||
+    isJsdomRuntime()
+  ) {
+    return null;
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    const duration = await new Promise<number | null>((resolve) => {
+      const audio = new window.Audio();
+      let timeoutId = 0;
+
+      const finalize = (value: number | null): void => {
+        window.clearTimeout(timeoutId);
+        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.removeEventListener('error', handleError);
+        audio.src = '';
+        resolve(value);
+      };
+
+      const handleLoadedMetadata = (): void => {
+        finalize(Number.isFinite(audio.duration) ? audio.duration : null);
+      };
+
+      const handleError = (): void => {
+        finalize(null);
+      };
+
+      timeoutId = window.setTimeout(() => {
+        finalize(null);
+      }, AUDIO_METADATA_TIMEOUT_MS);
+
+      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.addEventListener('error', handleError);
+      audio.preload = 'metadata';
+      audio.src = objectUrl;
+      audio.load();
+    });
+
+    return duration;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function hasUsableContinuousBed(
+  blobs: AudioBlobMap | CachedSoundscape['audioBlobs'] | null | undefined
+): Promise<boolean> {
+  if (!hasContinuousBedBlob(blobs)) {
+    return false;
+  }
+
+  const candidateBlobs = CONTINUOUS_BED_LAYERS
+    .map((layerType) => blobs?.[layerType] ?? null)
+    .filter((blob): blob is Blob => blob instanceof Blob);
+
+  for (const blob of candidateBlobs) {
+    const measuredDuration = await measureBlobDurationSeconds(blob);
+    if (measuredDuration === null) {
+      return true;
+    }
+
+    if (measuredDuration >= MIN_CONTINUOUS_BED_DURATION_SECONDS) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function filterPlayableCachedEntries(
+  entries: CachedSoundscape[]
+): Promise<CachedSoundscape[]> {
+  const validEntries: CachedSoundscape[] = [];
+
+  for (const entry of entries) {
+    if (await hasUsableContinuousBed(entry.audioBlobs as AudioBlobMap | undefined)) {
+      validEntries.push(entry);
+      continue;
+    }
+
+    await deleteCachedSoundscape(entry.id);
+  }
+
+  return validEntries;
+}
+
 function isWithinPreviewWindow(
   previous: [number, number] | null,
   next: [number, number]
@@ -262,7 +380,8 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
 
   const refreshCaches = useCallback(async (): Promise<void> => {
     const markers = await getCachedMarkers();
-    setCachedMarkers(sortCachedLocations(markers));
+    const playableMarkers = await filterPlayableCachedEntries(sortCachedLocations(markers));
+    setCachedMarkers(playableMarkers);
   }, []);
 
   const syncBrowserSettings = useCallback((): void => {
@@ -418,6 +537,13 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         return;
       }
 
+      if (!(await hasUsableContinuousBed(cached.audioBlobs as AudioBlobMap))) {
+        await deleteCachedSoundscape(cacheKey);
+        setCachedMarkers((previous) => previous.filter((entry) => entry.id !== cacheKey));
+        void refreshCaches();
+        return;
+      }
+
       cleanupPreview(false);
       await enableAudio();
       await play(recipe, cached.audioBlobs as AudioBlobMap);
@@ -469,9 +595,13 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         }
         const cachedRecipe = coerceRecipe(cached?.recipe);
         if (cached && cachedRecipe && cached.audioBlobs) {
+          if (!(await hasUsableContinuousBed(cached.audioBlobs as AudioBlobMap))) {
+            await deleteCachedSoundscape(cacheKey);
+          } else {
           setCachedMarkers((previous) => upsertCachedLocation(previous, cached));
           removeGenerationJob(jobId);
           return;
+          }
         }
 
         let narrativeAnchors = null;
@@ -505,6 +635,10 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         const blobs = generatedAudio.blobs;
 
         if (Object.keys(blobs).length === 0) {
+          throw new Error(messages.session.noAudioLayers);
+        }
+
+        if (!(await hasUsableContinuousBed(blobs))) {
           throw new Error(messages.session.noAudioLayers);
         }
 
@@ -746,37 +880,39 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       };
     });
 
-    const readyEntries = cachedMarkers.map((entry) => {
-      const recipe = coerceRecipe(entry.recipe);
-      const narrative = describeLocationContext(
-        recipe?.location ?? null,
-        recipe?.narrativeAnchors
-      );
+    const readyEntries: SessionLocationEntry[] = cachedMarkers
+      .filter((entry) => hasContinuousBedBlob(entry.audioBlobs))
+      .map((entry) => {
+        const recipe = coerceRecipe(entry.recipe);
+        const narrative = describeLocationContext(
+          recipe?.location ?? null,
+          recipe?.narrativeAnchors
+        );
 
-      return {
-        id: entry.id,
-        cacheKey: entry.id,
-        coordinates: entry.coordinates,
-        cityName: entry.cityName,
-        regionName: recipe?.location.regionName,
-        countryName: entry.countryName,
-        timeSlot: entry.timeSlot,
-        createdAt: entry.generatedAt,
-        progress: 100,
-        status: 'ready' as const,
-        statusLabel:
-          playbackState.soundscapeId === entry.id && playbackState.state === 'playing'
-            ? messages.home.playbackStatus.playing
-            : playbackState.soundscapeId === entry.id && playbackState.state === 'paused'
-              ? messages.home.playbackStatus.paused
-              : messages.home.playbackStatus.ready,
-        errorMessage: null,
-        isPlayable: true,
-        playbackDurationSeconds:
-          entry.playbackDurationSeconds ?? DEFAULT_RENDER_DURATION_SECONDS,
-        ...narrative,
-      };
-    });
+        return {
+          id: entry.id,
+          cacheKey: entry.id,
+          coordinates: entry.coordinates,
+          cityName: entry.cityName,
+          regionName: recipe?.location.regionName,
+          countryName: entry.countryName,
+          timeSlot: entry.timeSlot,
+          createdAt: entry.generatedAt,
+          progress: 100,
+          status: 'ready',
+          statusLabel:
+            playbackState.soundscapeId === entry.id && playbackState.state === 'playing'
+              ? messages.home.playbackStatus.playing
+              : playbackState.soundscapeId === entry.id && playbackState.state === 'paused'
+                ? messages.home.playbackStatus.paused
+                : messages.home.playbackStatus.ready,
+          errorMessage: null,
+          isPlayable: true,
+          playbackDurationSeconds:
+            entry.playbackDurationSeconds ?? DEFAULT_RENDER_DURATION_SECONDS,
+          ...narrative,
+        };
+      });
 
     return [...loadingEntries, ...readyEntries].sort((left, right) => right.createdAt - left.createdAt);
   }, [
@@ -789,13 +925,15 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
   ]);
 
   const mapPins = useMemo<SessionMapPin[]>(() => {
-    const readyPins = cachedMarkers.map((entry) => ({
-      id: entry.id,
-      cacheKey: entry.id,
-      coordinates: entry.coordinates,
-      isGenerating: false,
-      isSelectable: true,
-    }));
+    const readyPins = cachedMarkers
+      .filter((entry) => hasContinuousBedBlob(entry.audioBlobs))
+      .map((entry) => ({
+        id: entry.id,
+        cacheKey: entry.id,
+        coordinates: entry.coordinates,
+        isGenerating: false,
+        isSelectable: true,
+      }));
 
     const loadingPins = generationJobs.map((job) => ({
       id: job.id,
@@ -817,12 +955,16 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       return 'loading';
     }
 
-    if (cachedMarkers.length > 0 || playbackState.state === 'playing' || playbackState.state === 'paused') {
+    if (
+      cachedMarkers.some((entry) => hasContinuousBedBlob(entry.audioBlobs)) ||
+      playbackState.state === 'playing' ||
+      playbackState.state === 'paused'
+    ) {
       return 'ready';
     }
 
     return 'idle';
-  }, [cachedMarkers.length, generationJobs, hasActiveGeneration, playbackState.state]);
+  }, [cachedMarkers, generationJobs, hasActiveGeneration, playbackState.state]);
 
   return {
     status,

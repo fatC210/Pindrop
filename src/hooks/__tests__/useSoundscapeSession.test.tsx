@@ -298,6 +298,11 @@ function createDeferred<T>() {
 describe('useSoundscapeSession deletion flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:mock'),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.stubGlobal('navigator', { userAgent: 'jsdom' });
     mockGetCachedMarkers.mockResolvedValue([]);
     mockGetCachedSoundscape.mockResolvedValue(null);
     mockCacheSoundscape.mockResolvedValue(undefined);
@@ -502,5 +507,26 @@ describe('useSoundscapeSession deletion flow', () => {
         narrativeAnchors: anchors,
       });
     });
+  });
+
+  test('does not expose cached entries that only contain short non-bed fragments', async () => {
+    const invalidCachedEntry = {
+      ...createCachedSoundscape(),
+      id: 'short-only-cache',
+      audioBlobs: {
+        signature: new Blob(['signature']),
+      },
+    };
+
+    mockGetCachedMarkers.mockResolvedValueOnce([invalidCachedEntry]).mockResolvedValue([]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(0);
+      expect(result.current.mapPins).toHaveLength(0);
+    });
+
+    expect(mockDeleteCachedSoundscape).toHaveBeenCalledWith('short-only-cache');
   });
 });
