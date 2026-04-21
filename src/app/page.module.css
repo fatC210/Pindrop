@@ -282,6 +282,10 @@
   scrollbar-gutter: stable both-edges;
 }
 
+.locationListEmpty {
+  align-content: stretch;
+}
+
 .locationCard {
   display: grid;
   gap: 12px;
@@ -299,8 +303,30 @@
   box-shadow: 0 16px 30px rgba(12, 90, 214, 0.16);
 }
 
+.locationCardMapFocused {
+  border-color: rgba(12, 90, 214, 0.44);
+  box-shadow:
+    0 0 0 3px rgba(12, 90, 214, 0.14),
+    0 18px 34px rgba(12, 90, 214, 0.2);
+  animation: locationCardMapFocusPulse 1.1s ease;
+}
+
 .locationCardError {
   border-color: rgba(220, 38, 38, 0.2);
+}
+
+@keyframes locationCardMapFocusPulse {
+  0% {
+    transform: translateY(8px) scale(0.985);
+  }
+
+  55% {
+    transform: translateY(-2px) scale(1.01);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
 }
 
 .locationCardHeader {
@@ -333,6 +359,8 @@
   margin: 4px 0 0;
   color: var(--text-secondary);
   font-size: 13px;
+  line-height: 1.55;
+  text-wrap: pretty;
 }
 
 .locationSound {
@@ -605,9 +633,36 @@
 }
 
 .emptyLocations {
+  height: 100%;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px 18px;
+  text-align: center;
+}
+
+.emptyLocationsIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  color: var(--text-secondary);
+}
+
+.emptyLocationsIcon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.emptyLocationsText {
+  max-width: 28ch;
   margin: 0;
   color: var(--text-secondary);
+  font-size: 13px;
   line-height: 1.6;
+  text-wrap: balance;
 }
 
 @media (max-width: 980px) {

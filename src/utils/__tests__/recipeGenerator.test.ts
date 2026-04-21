@@ -341,7 +341,7 @@ describe('generateRecipe', () => {
 
     expect(recipe.layers.signature.prompt).toContain('Paris');
     expect(recipe.layers.signature.prompt).not.toBe('street_musician');
-    expect(recipe.layers.signature.prompt).toContain('everyday sound');
+    expect(recipe.layers.signature.prompt).toContain('everyday moment');
   });
 
   it('Beijing should inject place-specific anchors into ambient and signature prompts', () => {
@@ -349,6 +349,7 @@ describe('generateRecipe', () => {
 
     expect(recipe.layers.ambient.prompt).toContain('bing tang hu lu');
     expect(recipe.layers.ambient.prompt).toContain('xiangqi');
+    expect(recipe.layers.ambient.prompt).toContain('Center the scene on one recognisable local routine');
     expect(recipe.layers.signature.prompt).toContain('candied hawthorn skewers');
     expect(recipe.layers.atmosphere.prompt).toContain('Beijing park and hutong textures');
   });
@@ -393,6 +394,15 @@ describe('generateRecipe', () => {
     expect(recipe.layers.ambient.prompt).toContain('bookstalls opening along the riverside');
     expect(recipe.layers.signature.prompt).toContain('bookseller sliding a box of paperbacks');
     expect(recipe.layers.atmosphere.prompt).toContain('riverside bookseller textures');
+  });
+
+  it('atmosphere prompts should allow local human texture while forbidding spoken intros', () => {
+    const recipe = generateRecipe(PARIS_CONTEXT);
+
+    expect(recipe.layers.atmosphere.prompt).toContain('Natural embedded human voices are allowed');
+    expect(recipe.layers.atmosphere.prompt).toContain('never as a clean lead vocal');
+    expect(recipe.layers.atmosphere.prompt).toContain('Do not open with a spoken monologue');
+    expect(recipe.layers.atmosphere.prompt).toContain('no dramatic intro swell');
   });
 
   // --- 无对话区域静默规则 ---

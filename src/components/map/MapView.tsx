@@ -14,11 +14,8 @@ import './MapView.css';
 export interface MapViewProps {
   onCoordinateSelect: (lat: number, lng: number) => void;
   onMarkerSelect?: (cacheKey: string) => void;
-  onHoverPreview?: (lat: number, lng: number) => void;
-  onHoverEnd?: () => void;
   markers?: MarkerDescriptor[];
   focusedCoordinates?: [number, number] | null;
-  canPreview?: boolean;
   theme?: 'light' | 'dark';
   className?: string;
 }
@@ -48,11 +45,8 @@ function createTileLayer(theme: 'light' | 'dark'): L.TileLayer {
 export function MapView({
   onCoordinateSelect,
   onMarkerSelect,
-  onHoverPreview,
-  onHoverEnd,
   markers = [],
   focusedCoordinates = null,
-  canPreview = false,
   theme = 'light',
   className,
 }: MapViewProps) {
@@ -62,11 +56,7 @@ export function MapView({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const onCoordinateSelectRef = useRef(onCoordinateSelect);
   const onMarkerSelectRef = useRef(onMarkerSelect);
-  const onHoverPreviewRef = useRef(onHoverPreview);
-  const onHoverEndRef = useRef(onHoverEnd);
-  const canPreviewRef = useRef(canPreview);
   const initialThemeRef = useRef<'light' | 'dark'>(theme);
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
   const interactionStateRef = useRef<MapInteractionState>('clickable');
@@ -91,18 +81,6 @@ export function MapView({
   useEffect(() => {
     onMarkerSelectRef.current = onMarkerSelect;
   }, [onMarkerSelect]);
-
-  useEffect(() => {
-    onHoverPreviewRef.current = onHoverPreview;
-  }, [onHoverPreview]);
-
-  useEffect(() => {
-    onHoverEndRef.current = onHoverEnd;
-  }, [onHoverEnd]);
-
-  useEffect(() => {
-    canPreviewRef.current = canPreview;
-  }, [canPreview]);
 
   const cancelScheduledResize = useCallback((): void => {
     if (resizeFrameRef.current !== null) {
@@ -266,31 +244,6 @@ export function MapView({
       return;
     }
 
-    const cancelHoverPreview = (): void => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = null;
-      }
-
-      onHoverEndRef.current?.();
-    };
-
-    const scheduleHoverPreview = (event: L.LeafletMouseEvent): void => {
-      if (!canPreviewRef.current || isDraggingRef.current) {
-        return;
-      }
-
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-
-      const wrappedLatLng = map.wrapLatLng(event.latlng);
-      const { lat, lng } = wrappedLatLng;
-      hoverTimeoutRef.current = setTimeout(() => {
-        onHoverPreviewRef.current?.(lat, lng);
-      }, 500);
-    };
-
     const handleMouseDown = (event: L.LeafletMouseEvent): void => {
       const pointerEvent = event.originalEvent as MouseEvent | undefined;
       if (pointerEvent && pointerEvent.button !== 0) {
@@ -311,8 +264,6 @@ export function MapView({
         suppressNextClickRef.current = true;
         updateInteractionState('dragging');
       }
-
-      scheduleHoverPreview(event);
     };
 
     const handleMouseUp = (): void => {
@@ -326,7 +277,6 @@ export function MapView({
     const handleDragStart = (): void => {
       isDraggingRef.current = true;
       suppressNextClickRef.current = true;
-      cancelHoverPreview();
       updateInteractionState('dragging');
     };
 
@@ -342,9 +292,6 @@ export function MapView({
     map.on('mousedown', handleMouseDown);
     map.on('mousemove', handleMouseMove);
     map.on('mouseup', handleMouseUp);
-    map.on('mouseout', cancelHoverPreview);
-    map.on('movestart', cancelHoverPreview);
-    map.on('zoomstart', cancelHoverPreview);
     map.on('dragstart', handleDragStart);
     map.on('dragend', handleDragEnd);
     window.addEventListener('mouseup', handleMouseUp);
@@ -354,14 +301,10 @@ export function MapView({
       map.off('mousedown', handleMouseDown);
       map.off('mousemove', handleMouseMove);
       map.off('mouseup', handleMouseUp);
-      map.off('mouseout', cancelHoverPreview);
-      map.off('movestart', cancelHoverPreview);
-      map.off('zoomstart', cancelHoverPreview);
       map.off('dragstart', handleDragStart);
       map.off('dragend', handleDragEnd);
       window.removeEventListener('mouseup', handleMouseUp);
       window.removeEventListener('blur', handleMouseUp);
-      cancelHoverPreview();
     };
   }, [map, updateInteractionState]);
 

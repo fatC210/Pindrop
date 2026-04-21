@@ -51,6 +51,8 @@ export type WaterType = 'sea' | 'river' | 'lake' | 'canal';
 /** 位置语境 — Geocoding Engine 的核心输出数据结构，包含全部 17 个推断字段 */
 export interface LocationContext {
   // 基础地理
+  /** 省/州级行政区名称 */
+  administrativeRegionName?: string;
   /** 城市/位置名称 */
   cityName: string;
   /** 更细粒度的地区名称，例如区、街道或社区 */

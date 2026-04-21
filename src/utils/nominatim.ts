@@ -16,6 +16,7 @@ const REQUEST_TIMEOUT = 3000; // 3 seconds
 const localizedPlaceNameCache = new Map<string, Promise<LocalizedPlaceName | null>>();
 
 export interface LocalizedPlaceName {
+  administrativeRegionName?: string;
   cityName: string;
   regionName?: string;
   countryName: string;
@@ -151,7 +152,8 @@ export function extractGeocodingInfo(
   });
 
   // Extract administrative region
-  const administrativeRegion = address.state || address.county || '';
+  const administrativeRegion =
+    placeHierarchy.administrativeRegionName ?? placeHierarchy.regionName ?? '';
   
   // Infer timezone from longitude (approximate)
   const timezone = inferTimezoneFromLongitude(lng);

@@ -82,6 +82,7 @@ describe('nominatim localization helpers', () => {
     );
 
     await expect(getLocalizedPlaceName(39.9042, 116.4074, 'zh-CN')).resolves.toEqual({
+      administrativeRegionName: '北京市',
       cityName: '北京市',
       regionName: '西城区',
       countryName: '中国',

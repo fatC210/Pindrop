@@ -1,12 +1,17 @@
 .settings-popover {
+  --settings-popover-padding: 18px;
   position: absolute;
   top: calc(100% + 12px);
   right: 0;
-  z-index: 40;
+  z-index: 1200;
   width: min(92vw, 380px);
-  display: grid;
+  max-height: min(78dvh, 620px);
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  padding: 18px;
+  padding: var(--settings-popover-padding);
+  overflow: hidden;
+  isolation: isolate;
   border: 1px solid rgba(163, 184, 208, 0.42);
   border-radius: 24px;
   background:
@@ -16,6 +21,24 @@
     0 8px 20px rgba(148, 163, 184, 0.18);
   backdrop-filter: blur(16px);
   animation: settingsPopoverIn 0.18s ease-out;
+}
+
+.settings-popover::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  z-index: -1;
+  border-radius: 34px;
+  background: rgba(243, 240, 238, 0.78);
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+@supports not (height: 100dvh) {
+  .settings-popover {
+    max-height: min(78vh, 620px);
+  }
 }
 
 @keyframes settingsPopoverIn {
@@ -31,12 +54,10 @@
 }
 
 .settings-popover__close-button {
-  position: absolute;
-  top: 14px;
-  right: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   width: 34px;
   height: 34px;
   border: 0;
@@ -66,6 +87,23 @@
   height: 16px;
 }
 
+.settings-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-popover__title {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
 .settings-popover__warning {
   display: flex;
   align-items: center;
@@ -93,15 +131,34 @@
 }
 
 .settings-popover__body {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   gap: 14px;
-  padding-top: 6px;
+  padding-top: 0;
+  padding-right: var(--settings-popover-padding);
+  margin-right: calc(var(--settings-popover-padding) * -1);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (max-width: 640px) {
   .settings-popover {
+    --settings-popover-padding: 16px;
     width: min(92vw, 360px);
-    padding: 16px;
+    max-height: min(72dvh, 560px);
     border-radius: 22px;
+  }
+}
+
+@supports not (height: 100dvh) {
+  @media (max-width: 640px) {
+    .settings-popover {
+      max-height: min(72vh, 560px);
+    }
   }
 }

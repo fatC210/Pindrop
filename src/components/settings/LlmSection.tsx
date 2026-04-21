@@ -3,9 +3,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useI18n } from '@/i18n/I18nProvider';
+import type { LlmVerificationResult } from './types';
 import { clearLlmApiKey, storeLlmApiKey } from './preferencesStore';
 import { normalizeApiKey } from './apiKeyUtils';
+import { LoadingSpinner } from './LoadingSpinner';
 import './LlmSection.css';
+
+const AUTO_SAVE_DELAY_MS = 600;
 
 export interface LlmSectionProps {
   baseUrl: string;
@@ -14,6 +18,8 @@ export interface LlmSectionProps {
   onBaseUrlChange: (baseUrl: string) => void;
   onModelChange: (model: string) => void;
   onApiKeyChange: (apiKey: string) => void;
+  isVerifying?: boolean;
+  verificationResult?: LlmVerificationResult | null;
   compact?: boolean;
 }
 
@@ -32,6 +38,8 @@ export function LlmSection({
   onBaseUrlChange,
   onModelChange,
   onApiKeyChange,
+  isVerifying = false,
+  verificationResult = null,
   compact = false,
 }: LlmSectionProps): React.JSX.Element {
   const { messages } = useI18n();
@@ -75,6 +83,11 @@ export function LlmSection({
   const modelInputValue = draftModel ?? model;
   const apiKeyInputValue = draftApiKey ?? apiKey;
   const hasApiKeyValue = normalizeApiKey(apiKeyInputValue).length > 0;
+  const hasPendingDraft = draftBaseUrl !== null || draftModel !== null || draftApiKey !== null;
+  const isConfigComplete =
+    normalizeBaseUrl(baseUrlInputValue).length > 0 &&
+    normalizeModel(modelInputValue).length > 0 &&
+    normalizeApiKey(apiKeyInputValue).length > 0;
 
   const commitBaseUrl = useCallback(
     (rawValue: string, options?: { updateLocalState?: boolean }): void => {
@@ -162,6 +175,64 @@ export function LlmSection({
     };
   }, [commitApiKey, commitBaseUrl, commitModel]);
 
+  useEffect(() => {
+    if (draftBaseUrl === null) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      commitBaseUrl(draftBaseUrl);
+    }, AUTO_SAVE_DELAY_MS);
+
+    return (): void => {
+      window.clearTimeout(timer);
+    };
+  }, [commitBaseUrl, draftBaseUrl]);
+
+  useEffect(() => {
+    if (draftModel === null) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      commitModel(draftModel);
+    }, AUTO_SAVE_DELAY_MS);
+
+    return (): void => {
+      window.clearTimeout(timer);
+    };
+  }, [commitModel, draftModel]);
+
+  useEffect(() => {
+    if (draftApiKey === null) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      commitApiKey(draftApiKey);
+    }, AUTO_SAVE_DELAY_MS);
+
+    return (): void => {
+      window.clearTimeout(timer);
+    };
+  }, [commitApiKey, draftApiKey]);
+
+  const shouldShowVerificationState = isConfigComplete && !hasPendingDraft && (isVerifying || verificationResult);
+  let verificationMessage: string | null = null;
+  let verificationClassName = 'llm-section__status';
+  const description = messages.settings.sections.llm.description.trim();
+
+  if (verificationResult && !verificationResult.isValid) {
+    verificationMessage =
+      verificationResult.error === 'CONNECTION_FAILED'
+        ? messages.settings.sections.llm.connectionFailed
+        : messages.settings.sections.llm.invalid;
+    verificationClassName += ' llm-section__status--failure';
+  } else if (verificationResult?.isValid) {
+    verificationMessage = messages.settings.sections.llm.valid;
+    verificationClassName += ' llm-section__status--success';
+  }
+
   return (
     <section
       className={`llm-section${compact ? ' llm-section--compact' : ''}`}
@@ -170,6 +241,7 @@ export function LlmSection({
       <h3 id="llm-section-header" className="llm-section__header">
         {messages.settings.sections.llm.header}
       </h3>
+      {description ? <p className="llm-section__description">{description}</p> : null}
 
       <div className="llm-section__field">
         <label className="llm-section__label" htmlFor="llm-base-url-input">
@@ -189,6 +261,7 @@ export function LlmSection({
           placeholder={messages.settings.sections.llm.baseUrlPlaceholder}
           autoComplete="off"
           spellCheck={false}
+          required
         />
       </div>
 
@@ -210,6 +283,7 @@ export function LlmSection({
           placeholder={messages.settings.sections.llm.modelPlaceholder}
           autoComplete="off"
           spellCheck={false}
+          required
         />
       </div>
 
@@ -232,6 +306,7 @@ export function LlmSection({
             placeholder={messages.settings.sections.llm.apiKeyPlaceholder}
             autoComplete="off"
             spellCheck={false}
+            required
           />
 
           {hasApiKeyValue ? (
@@ -325,6 +400,25 @@ export function LlmSection({
           ) : null}
         </div>
       </div>
+
+      {shouldShowVerificationState ? (
+        <div className={verificationClassName} role="status" aria-live="polite">
+          {isVerifying ? (
+            <>
+              <LoadingSpinner size="small" />
+              <span>{messages.settings.sections.llm.verifying}</span>
+            </>
+          ) : (
+            <span>{verificationMessage}</span>
+          )}
+        </div>
+      ) : (
+        <p className="llm-section__hint">
+          {isConfigComplete
+            ? messages.settings.sections.llm.activeHint
+            : messages.settings.sections.llm.inactiveHint}
+        </p>
+      )}
     </section>
   );
 }

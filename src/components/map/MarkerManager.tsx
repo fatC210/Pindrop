@@ -18,6 +18,18 @@ export interface MarkerManagerProps {
   onMarkerClick: (cacheKey: string) => void;
 }
 
+function attachMarkerClickHandler(
+  marker: L.Marker,
+  cacheKey: string,
+  onMarkerClick: (cacheKey: string) => void
+): void {
+  marker.off('click');
+  marker.on('click', (event: L.LeafletMouseEvent) => {
+    L.DomEvent.stopPropagation(event.originalEvent);
+    onMarkerClick(cacheKey);
+  });
+}
+
 function createMarkerIcon(marker: MarkerDescriptor): L.DivIcon {
   const interactiveClassName = marker.isSelectable ? ' map-pin-marker--interactive' : '';
   const generatingClassName = marker.isGenerating ? ' map-pin-marker--generating' : '';
@@ -64,20 +76,18 @@ export function MarkerManager({
       if (existingMarker) {
         existingMarker.setLatLng(marker.coordinates);
         existingMarker.setIcon(icon);
-        existingMarker.off('click');
         if (marker.isSelectable && marker.cacheKey) {
-          existingMarker.on('click', () => {
-            onMarkerClick(marker.cacheKey as string);
-          });
+          attachMarkerClickHandler(existingMarker, marker.cacheKey, onMarkerClick);
         }
         continue;
       }
 
-      const leafletMarker = L.marker(marker.coordinates, { icon });
+      const leafletMarker = L.marker(marker.coordinates, {
+        icon,
+        bubblingMouseEvents: false,
+      });
       if (marker.isSelectable && marker.cacheKey) {
-        leafletMarker.on('click', () => {
-          onMarkerClick(marker.cacheKey as string);
-        });
+        attachMarkerClickHandler(leafletMarker, marker.cacheKey, onMarkerClick);
       }
       leafletMarker.addTo(map);
       renderedMarkers.set(marker.id, leafletMarker);

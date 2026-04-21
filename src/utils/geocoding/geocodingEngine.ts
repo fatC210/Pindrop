@@ -128,6 +128,7 @@ export function buildLocationContext(
   // 构建完整 LocationContext
   return {
     // 基础地理
+    administrativeRegionName: placeHierarchy.administrativeRegionName,
     cityName: placeHierarchy.cityName,
     regionName: placeHierarchy.regionName,
     countryName: placeHierarchy.countryName,

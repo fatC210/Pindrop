@@ -95,6 +95,10 @@ export interface AppMessages {
         apiKeyPlaceholder: string;
         show: string;
         hide: string;
+        verifying: string;
+        valid: string;
+        invalid: string;
+        connectionFailed: string;
         inactiveHint: string;
         activeHint: string;
       };
@@ -133,6 +137,7 @@ export interface AppMessages {
     idleScene: string;
     apiKeyRequiredError: string;
     apiKeyRequiredStatus: string;
+    llmRequiredError: string;
     generating: string;
     noAudioLayers: string;
     generationFailed: string;
@@ -178,9 +183,9 @@ const EN_MESSAGES: AppMessages = {
     openSettingsAria: 'Open settings',
     currentLocation: 'Current location',
     locationMetaEmpty: 'Choose any point on the map',
-    apiKeyRequiredTitle: 'ElevenLabs API key required',
+    apiKeyRequiredTitle: 'Generation setup required',
     apiKeyRequiredCopy:
-      'Open Settings and add your ElevenLabs API key before generating soundscapes.',
+      'Open Settings and complete both the ElevenLabs key and the required LLM configuration before generating soundscapes.',
     audioUnavailableTitle: 'Audio unavailable',
     audioUnavailableCopy:
       'This browser does not expose the Web Audio APIs required for playback.',
@@ -245,9 +250,8 @@ const EN_MESSAGES: AppMessages = {
         valid: 'Key valid',
       },
       llm: {
-        header: 'Optional LLM Enrichment',
-        description:
-          'Fill in an OpenAI-compatible request address, model, and API key to enrich sound cues for long-tail locations before audio generation.',
+        header: 'Required LLM Prompting',
+        description: '',
         baseUrlLabel: 'Request address',
         baseUrlPlaceholder: 'https://api.openai.com/v1',
         modelLabel: 'Model',
@@ -256,8 +260,12 @@ const EN_MESSAGES: AppMessages = {
         apiKeyPlaceholder: 'sk-...',
         show: 'Show key',
         hide: 'Hide key',
-        inactiveHint: 'Leave any field blank to use the built-in prompt rules only.',
-        activeHint: 'When all three fields are set, PinDrop will request structured local sound anchors from your LLM.',
+        verifying: 'Checking connection...',
+        valid: 'Connection verified.',
+        invalid: 'Request failed. Check the base URL, model, and API key.',
+        connectionFailed: 'Connection failed. Check the network and request address.',
+        inactiveHint: 'All three fields are required. Audio generation stays disabled until the LLM configuration is complete.',
+        activeHint: 'PinDrop will request one concrete place-specific scene from your LLM before generating audio.',
       },
       map: {
         header: 'Appearance',
@@ -293,8 +301,10 @@ const EN_MESSAGES: AppMessages = {
     idleLocation: 'Click anywhere on the map to hear this place',
     idleScene: 'Pin the map and generate a live local soundscape.',
     apiKeyRequiredError:
-      'Configure your ElevenLabs API key in Settings before generating soundscapes.',
-    apiKeyRequiredStatus: 'ElevenLabs API key required',
+      'Configure both your ElevenLabs API key and the required LLM settings in Settings before generating soundscapes.',
+    apiKeyRequiredStatus: 'Generation setup required',
+    llmRequiredError:
+      'PinDrop could not get a concrete place-specific scene from the LLM, so generation was stopped.',
     generating: 'Locating this place and generating its soundscape...',
     noAudioLayers: 'No audio layers could be generated for this location.',
     generationFailed: 'Generation failed',
@@ -361,8 +371,9 @@ const ZH_CN_MESSAGES: AppMessages = {
     openSettingsAria: '打开设置',
     currentLocation: '当前位置',
     locationMetaEmpty: '在地图上选择任意一点',
-    apiKeyRequiredTitle: '需要 ElevenLabs API 密钥',
-    apiKeyRequiredCopy: '请先在设置中添加 ElevenLabs API Key，再生成声音景观。',
+    apiKeyRequiredTitle: '需要完整生成配置',
+    apiKeyRequiredCopy:
+      '请先在设置中同时配置 ElevenLabs API Key 和必填的 LLM 参数，再生成声音景观。',
     audioUnavailableTitle: '音频不可用',
     audioUnavailableCopy: '当前浏览器不支持播放所需的 Web Audio API。',
     generatingTitle: '正在生成声音景观',
@@ -426,9 +437,8 @@ const ZH_CN_MESSAGES: AppMessages = {
         valid: '密钥有效',
       },
       llm: {
-        header: '可选 LLM 增强',
-        description:
-          '填写兼容 OpenAI 的请求地址、模型名和 API Key，在生成音频前为冷门地点补充更贴地的声音锚点。',
+        header: '必填 LLM 场景生成',
+        description: '',
         baseUrlLabel: '请求地址',
         baseUrlPlaceholder: 'https://api.openai.com/v1',
         modelLabel: '模型名',
@@ -437,8 +447,12 @@ const ZH_CN_MESSAGES: AppMessages = {
         apiKeyPlaceholder: 'sk-...',
         show: '显示',
         hide: '隐藏',
-        inactiveHint: '任意一项留空时，会自动回退到内置规则模板。',
-        activeHint: '三项都填写后，PinDrop 会先向你的 LLM 请求结构化的本地声音锚点，再生成声音景观。',
+        verifying: '正在检测连接...',
+        valid: '连接已验证，可正常使用。',
+        invalid: '请求失败，请检查请求地址、模型名和 API Key。',
+        connectionFailed: '连接失败，请检查网络或请求地址。',
+        inactiveHint: '这三项现在都是必填。缺少任意一项时，将禁止生成音频。',
+        activeHint: '配置完整后，PinDrop 会先向你的 LLM 请求一个具体的地点场景，再生成声音景观。',
       },
       map: {
         header: '外观',
@@ -473,8 +487,10 @@ const ZH_CN_MESSAGES: AppMessages = {
   session: {
     idleLocation: '点击地图任意位置即可收听该地点',
     idleScene: '在地图上落点，生成当地实时声音景观。',
-    apiKeyRequiredError: '请先在设置中配置 ElevenLabs API Key，再生成声音景观。',
-    apiKeyRequiredStatus: '需要 ElevenLabs API 密钥',
+    apiKeyRequiredError:
+      '请先在设置中同时配置 ElevenLabs API Key 和必填的 LLM 参数，再生成声音景观。',
+    apiKeyRequiredStatus: '需要完整生成配置',
+    llmRequiredError: 'LLM 未能给出这个地点的一件具体事件，因此已停止生成，避免退化成泛化文案。',
     generating: '正在定位该地点并生成对应的声音景观...',
     noAudioLayers: '这个地点未能生成可用的音频层。',
     generationFailed: '生成失败',

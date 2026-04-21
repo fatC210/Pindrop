@@ -23,6 +23,7 @@ export interface NarrativeAnchorCue {
 export interface SoundscapeNarrativeAnchors {
   source: 'llm' | 'rules';
   confidence: number;
+  summary?: LocalizedCueLabel;
   cues: NarrativeAnchorCue[];
   signature?: NarrativeAnchorCue;
   atmosphereTone?: string;

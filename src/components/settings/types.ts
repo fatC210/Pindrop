@@ -91,6 +91,13 @@ export type ApiKeyVerificationErrorCode = 'INVALID_OR_EXPIRED' | 'CONNECTION_FAI
 
 export type ApiKeyErrorCode = ApiKeyValidationErrorCode | ApiKeyVerificationErrorCode;
 
+export interface LlmVerificationResult {
+  isValid: boolean;
+  error?: LlmVerificationErrorCode;
+}
+
+export type LlmVerificationErrorCode = 'INVALID_CONFIGURATION' | 'CONNECTION_FAILED';
+
 // ---------------------------------------------------------------------------
 // Cache types
 // ---------------------------------------------------------------------------

@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import type { LocationContext } from '@/types/locationContext';
-import { getSelectedSoundCues, getSoundSummary } from '../soundscape/sceneNarrative';
-import type { SoundscapeNarrativeAnchors } from '@/types/soundscapeRecipe';
 
-const HANPU_CONTEXT: LocationContext = {
-  cityName: '含浦街道',
-  countryName: '中国',
+import type { LocationContext } from '@/types/locationContext';
+import type { SoundscapeNarrativeAnchors } from '@/types/soundscapeRecipe';
+import {
+  getSelectedSoundCues,
+  getSignatureCue,
+  getSoundSummary,
+} from '../soundscape/sceneNarrative';
+
+const SHITAN_CONTEXT: LocationContext = {
+  cityName: 'Shitan',
+  regionName: 'Xiangtan County',
+  countryName: 'China',
   regionType: 'town',
-  coordinates: [28.12, 112.91],
+  coordinates: [27.83, 112.95],
   primaryLanguage: 'zh',
   languageVariant: 'zh-CN',
   secondaryLanguages: [],
@@ -24,9 +30,9 @@ const HANPU_CONTEXT: LocationContext = {
 };
 
 const BAOAN_CONTEXT: LocationContext = {
-  cityName: '宝安区',
-  regionName: '深圳市',
-  countryName: '中国',
+  cityName: 'Baoan District',
+  regionName: 'Shenzhen',
+  countryName: 'China',
   regionType: 'city_suburb',
   coordinates: [22.555, 113.883],
   primaryLanguage: 'zh',
@@ -45,9 +51,9 @@ const BAOAN_CONTEXT: LocationContext = {
 };
 
 const BEIJING_CONTEXT: LocationContext = {
-  cityName: '北京市',
-  regionName: '西城区',
-  countryName: '中国',
+  cityName: 'Beijing',
+  regionName: 'Xicheng District',
+  countryName: 'China',
   regionType: 'city_center',
   coordinates: [39.9042, 116.4074],
   primaryLanguage: 'zh',
@@ -66,9 +72,9 @@ const BEIJING_CONTEXT: LocationContext = {
 };
 
 const GUILIN_CONTEXT: LocationContext = {
-  cityName: '桂林市',
-  regionName: '广西壮族自治区',
-  countryName: '中国',
+  cityName: 'Guilin',
+  regionName: 'Guangxi',
+  countryName: 'China',
   regionType: 'city_center',
   coordinates: [25.2742, 110.2964],
   primaryLanguage: 'zh',
@@ -87,43 +93,48 @@ const GUILIN_CONTEXT: LocationContext = {
 };
 
 describe('sceneNarrative', () => {
-  it('prioritizes region-specific cues before broad culture cues for everyday places', () => {
-    const townCues = getSelectedSoundCues(HANPU_CONTEXT);
+  it('returns differentiated fallback cues for everyday places instead of reusing one generic lead', () => {
+    const townCues = getSelectedSoundCues(SHITAN_CONTEXT);
     const suburbCues = getSelectedSoundCues(BAOAN_CONTEXT);
 
-    expect(townCues[0]?.label['zh-CN']).toBe('小镇广场低声人群');
-    expect(suburbCues[0]?.label['zh-CN']).toBe('街区里的零散人声');
+    expect(townCues).toHaveLength(3);
+    expect(suburbCues).toHaveLength(3);
+    expect(townCues.map((cue) => cue.label.en)).not.toEqual(
+      suburbCues.map((cue) => cue.label.en)
+    );
+    expect(townCues.some((cue) => cue.label.en === 'town-square murmur')).toBe(true);
+    expect(suburbCues.some((cue) => cue.label.en === 'neighborhood voices')).toBe(true);
   });
 
   it('writes summaries with the specific location name and a differentiated opening', () => {
-    const townSummary = getSoundSummary(HANPU_CONTEXT, 'zh-CN');
-    const suburbSummary = getSoundSummary(BAOAN_CONTEXT, 'zh-CN');
+    const townSummary = getSoundSummary(SHITAN_CONTEXT, 'en');
+    const suburbSummary = getSoundSummary(BAOAN_CONTEXT, 'en');
 
-    expect(townSummary).toContain('在含浦街道');
-    expect(suburbSummary).toContain('在宝安区');
-    expect(townSummary).toContain('小镇街口');
-    expect(suburbSummary).toContain('城市街区');
+    expect(townSummary).toContain('Shitan');
+    expect(suburbSummary).toContain('Baoan District');
+    expect(townSummary).toContain('small-town center');
+    expect(suburbSummary).toContain('city district');
     expect(townSummary).not.toBe(suburbSummary);
   });
 
   it('uses Beijing-specific anchor cues before generic East Asia defaults', () => {
     const beijingCues = getSelectedSoundCues(BEIJING_CONTEXT);
-    const beijingSummary = getSoundSummary(BEIJING_CONTEXT, 'zh-CN');
+    const beijingSummary = getSoundSummary(BEIJING_CONTEXT, 'en');
 
-    expect(beijingCues[0]?.label['zh-CN']).toBe('冰糖葫芦叫卖声');
-    expect(beijingCues[1]?.label['zh-CN']).toBe('公园里下象棋的笑谈声');
-    expect(beijingSummary).toContain('冰糖葫芦叫卖声');
-    expect(beijingSummary).toContain('公园里下象棋的笑谈声');
+    expect(beijingCues[0]?.label.en).toBe('an elder hawking candied hawthorn by bicycle');
+    expect(beijingCues[1]?.label.en).toBe('park-side xiangqi laughter');
+    expect(beijingSummary).toContain('candied hawthorn');
+    expect(beijingSummary).toContain('park-side xiangqi laughter');
   });
 
   it('uses Guilin river anchors before generic city cues', () => {
     const guilinCues = getSelectedSoundCues(GUILIN_CONTEXT);
-    const guilinSummary = getSoundSummary(GUILIN_CONTEXT, 'zh-CN');
+    const guilinSummary = getSoundSummary(GUILIN_CONTEXT, 'en');
 
-    expect(guilinCues[0]?.label['zh-CN']).toBe('木桨划过漓江水声');
-    expect(guilinCues[1]?.label['zh-CN']).toBe('水风车转动与流水声');
-    expect(guilinSummary).toContain('木桨划过漓江水声');
-    expect(guilinSummary).toContain('水风车转动与流水声');
+    expect(guilinCues[0]?.label.en).toBe('wooden oars on the Li River');
+    expect(guilinCues[1]?.label.en).toBe('a riverside waterwheel flow');
+    expect(guilinSummary).toContain('wooden oars on the Li River');
+    expect(guilinSummary).toContain('a riverside waterwheel flow');
   });
 
   it('prioritizes LLM-provided cues in the summary when no place-specific anchor overrides them', () => {
@@ -133,11 +144,11 @@ describe('sceneNarrative', () => {
       cues: [
         {
           prompt: 'bookstalls opening along the riverside and paper sleeves rustling',
-          label: { en: 'riverside bookstalls', 'zh-CN': '河边旧书摊翻动声' },
+          label: { en: 'riverside bookstalls', 'zh-CN': 'riverside bookstalls' },
         },
         {
           prompt: 'metal shutters lifting from a small morning market arcade',
-          label: { en: 'market arcade shutters', 'zh-CN': '清晨小市场卷闸门声' },
+          label: { en: 'market arcade shutters', 'zh-CN': 'market arcade shutters' },
         },
       ],
     };
@@ -151,11 +162,19 @@ describe('sceneNarrative', () => {
         cultureRegion: 'eastern_europe',
         nearWater: 'river',
       },
-      'zh-CN',
+      'en',
       llmAnchors
     );
 
-    expect(summary).toContain('河边旧书摊翻动声');
-    expect(summary).toContain('清晨小市场卷闸门声');
+    expect(summary).toContain('riverside bookstalls');
+    expect(summary).toContain('market arcade shutters');
+  });
+
+  it('uses one concrete routine as the summary focus when there is no built-in place anchor', () => {
+    const summary = getSoundSummary(BAOAN_CONTEXT, 'en');
+    const featuredCue = getSignatureCue(BAOAN_CONTEXT);
+
+    expect(summary).toContain(featuredCue.label.en);
+    expect(summary).not.toContain('generic');
   });
 });

@@ -165,13 +165,13 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   east_asia: [
     {
       prompt:
-        'park-edge conversation, folding stools or chairs, and storefront routine matched to the exact block',
-      label: { en: 'park-side talk and storefront routine', 'zh-CN': '公园边闲谈与沿街日常声' },
+        'a shop shutter rolling upward, folding stools scraping lightly, and park-edge conversation matched to the exact block',
+      label: { en: 'a shop opening beside park-side talk', 'zh-CN': '卷闸门拉起与公园边闲谈声' },
     },
     {
       prompt:
-        'street-side food preparation, light utensil handling, or crossing cues only when they truly belong to the street',
-      label: { en: 'street-side prep and precise local cues', 'zh-CN': '街边备餐与更贴地的本地提示声' },
+        'street-side food preparation, bowls or chopsticks being set down, and crossing cues only when they truly belong to the street',
+      label: { en: 'street-side prep with bowls and utensils', 'zh-CN': '街边备餐与碗筷轻碰声' },
     },
   ],
   south_asia: [
@@ -272,14 +272,16 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   ],
   global: [
     {
-      prompt: 'local storefront routine and practical foot traffic rather than novelty effects',
-      label: { en: 'storefront routine', 'zh-CN': '日常店铺运作声' },
+      prompt:
+        'a nearby shop or stall opening for the day, with practical footsteps and hand movement that fit the place',
+      label: { en: 'a nearby shop or stall opening', 'zh-CN': '附近店铺或小摊开张声' },
     },
   ],
   unknown: [
     {
-      prompt: 'credible local daily routine and small human-scale movement grounded in the place',
-      label: { en: 'credible local daily routine', 'zh-CN': '可信的本地日常声' },
+      prompt:
+        'one credible local setup moment with small human-scale movement grounded in the place',
+      label: { en: 'one credible local setup moment', 'zh-CN': '一个可信的本地开张细节' },
     },
   ],
 };
@@ -295,8 +297,8 @@ const CULTURE_SIGNATURES: Record<string, SoundCue> = {
   },
   east_asia: {
     prompt:
-      'one brief everyday detail such as food-stall utensil handling, park-side chatter, or another exact neighborhood sound that fits the street',
-    label: { en: 'one exact neighborhood detail', 'zh-CN': '一个贴合街区的日常细节声' },
+      'a street-side breakfast or snack stall rolling up its shutter, setting down bowls or chopsticks, and exchanging one quick local greeting',
+    label: { en: 'a street-side stall opening for the day', 'zh-CN': '街边小摊拉起卷闸门准备开张' },
   },
   south_asia: {
     prompt: 'tea glasses meeting lightly beside a passing scooter',
@@ -339,12 +341,14 @@ const CULTURE_SIGNATURES: Record<string, SoundCue> = {
     label: { en: 'a brief ice fracture', 'zh-CN': '短促的冰层裂响' },
   },
   global: {
-    prompt: 'one recognisable nearby daily-life sound anchored in the local street',
-    label: { en: 'one local daily-life detail', 'zh-CN': '一个本地日常细节声' },
+    prompt:
+      'a nearby shop or stall starting the day with one short, place-credible setup sound',
+    label: { en: 'a nearby shop or stall starting the day', 'zh-CN': '附近店铺或小摊开始营业' },
   },
   unknown: {
-    prompt: 'one realistic nearby daily-life detail that fits this exact place',
-    label: { en: 'one realistic local detail', 'zh-CN': '一个真实的本地细节声' },
+    prompt:
+      'one realistic nearby setup moment or small task that fits this exact place',
+    label: { en: 'one realistic local setup moment', 'zh-CN': '一个真实的本地开张瞬间' },
   },
 };
 
@@ -356,23 +360,29 @@ const PLACE_SOUND_ANCHORS: PlaceSoundAnchor[] = [
       {
         prompt:
           'a Beijing street vendor calling out for candied hawthorn skewers, the familiar "bing tang hu lu" cry drifting through a hutong-side lane or park entrance',
-        label: { en: 'a candied hawthorn vendor call', 'zh-CN': '冰糖葫芦叫卖声' },
+        label: {
+          en: 'an elder hawking candied hawthorn by bicycle',
+          'zh-CN': '老人骑车叫卖冰糖葫芦',
+        },
       },
       {
         prompt:
           'older men laughing, commenting, and tapping xiangqi pieces on a park-side table',
-        label: { en: 'park-side xiangqi laughter', 'zh-CN': '公园里下象棋的笑谈声' },
+        label: { en: 'park-side xiangqi laughter', 'zh-CN': '公园里下象棋落子和笑谈声' },
       },
       {
         prompt:
           'thermos lids, folding chairs, and slow park footsteps around a Beijing neighborhood park',
-        label: { en: 'park thermos and chair movement', 'zh-CN': '公园里暖壶、折叠椅与脚步声' },
+        label: { en: 'park thermos and chair movement', 'zh-CN': '公园里暖壶和折叠椅挪动声' },
       },
     ],
     signature: {
       prompt:
         'a familiar Beijing hawker cry for candied hawthorn skewers passing once at natural street distance',
-      label: { en: 'a Beijing candied hawthorn call', 'zh-CN': '一声北京冰糖葫芦叫卖' },
+      label: {
+        en: 'a Beijing candied hawthorn cry passing once',
+        'zh-CN': '一声从胡同口掠过的冰糖葫芦叫卖',
+      },
     },
     atmosphereTone: 'Beijing park and hutong textures',
   },
@@ -441,6 +451,46 @@ const CULTURAL_ATMOSPHERE_TONES: Record<string, string> = {
   global: 'local acoustic colors',
   unknown: 'local acoustic colors',
 };
+
+function hashString(value: string): number {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
+}
+
+function getContextSeed(context: LocationContext, salt: string): number {
+  const basis = [
+    salt,
+    context.countryName,
+    context.administrativeRegionName ?? '',
+    context.cityName,
+    context.regionName ?? '',
+    context.regionType,
+    context.terrain,
+    context.nearWater ?? '',
+    context.timeSlot,
+    context.coordinates[0].toFixed(3),
+    context.coordinates[1].toFixed(3),
+  ].join('|');
+
+  return hashString(basis);
+}
+
+function selectCueBySeed(cues: SoundCue[], seed: number): SoundCue | null {
+  if (cues.length === 0) {
+    return null;
+  }
+
+  return cues[seed % cues.length] ?? null;
+}
+
+function dedupeDefinedCues(...cues: Array<SoundCue | null | undefined>): SoundCue[] {
+  return dedupeCues(cues.filter((cue): cue is SoundCue => cue !== null && cue !== undefined));
+}
 
 function dedupeCues(cues: SoundCue[]): SoundCue[] {
   const seen = new Set<string>();
@@ -594,6 +644,72 @@ function getSummarySettingLabel(context: LocationContext, locale: AppLocale): st
   return locale === 'zh-CN' ? `${waterPrefix}${baseLabel}` : `${waterPrefix} ${baseLabel}`;
 }
 
+function getRuleBasedNarrativeAnchors(context: LocationContext): SoundscapeNarrativeAnchors | null {
+  const regionCues = REGION_CUES[context.regionType] ?? REGION_CUES.rural;
+  const cultureCues = isEverydayCultureRegion(context.regionType)
+    ? (CULTURE_CUES[context.cultureRegion] ?? CULTURE_CUES.unknown)
+    : [];
+  const waterCue = context.nearWater ? WATER_CUES[context.nearWater] : null;
+  const cultureSignature = CULTURE_SIGNATURES[context.cultureRegion] ?? CULTURE_SIGNATURES.unknown;
+  const locationName = getSummaryLocationName(context);
+
+  let featuredCue: SoundCue | null = null;
+  if (
+    waterCue &&
+    (context.regionType === 'ocean' ||
+      context.terrain === 'river' ||
+      context.terrain === 'lake' ||
+      context.terrain === 'coast')
+  ) {
+    featuredCue = waterCue;
+  } else if (context.regionType === 'town' || context.regionType === 'village') {
+    featuredCue = selectCueBySeed(
+      dedupeDefinedCues(regionCues[0], regionCues[1], cultureCues[0], waterCue),
+      getContextSeed(context, 'small-place')
+    );
+  } else if (context.regionType === 'city_suburb') {
+    featuredCue = selectCueBySeed(
+      dedupeDefinedCues(regionCues[0], cultureCues[0], regionCues[1], waterCue),
+      getContextSeed(context, 'suburb')
+    );
+  } else if (context.regionType === 'city_center') {
+    featuredCue = selectCueBySeed(
+      dedupeDefinedCues(cultureSignature, cultureCues[0], regionCues[0], cultureCues[1], waterCue),
+      getContextSeed(context, 'city-center')
+    );
+  } else {
+    featuredCue = selectCueBySeed(
+      dedupeDefinedCues(waterCue, regionCues[0], cultureSignature, cultureCues[0]),
+      getContextSeed(context, 'fallback')
+    );
+  }
+
+  if (!featuredCue) {
+    return null;
+  }
+
+  const cues = dedupeCues([
+    featuredCue,
+    ...regionCues,
+    ...cultureCues,
+    ...(waterCue ? [waterCue] : []),
+  ]).slice(0, 3);
+  const signature =
+    selectCueBySeed(
+      dedupeDefinedCues(featuredCue, cultureSignature, cues[1], waterCue),
+      getContextSeed(context, 'signature')
+    ) ?? featuredCue;
+
+  return {
+    source: 'rules',
+    confidence: 0.58,
+    cues,
+    signature,
+    atmosphereTone: CULTURAL_ATMOSPHERE_TONES[context.cultureRegion] ?? 'local acoustic colors',
+    specificityInstruction: `Center the scene on one precise routine residents of ${locationName} would recognize immediately, especially ${featuredCue.label.en}, and avoid falling back to generic regional stock sounds.`,
+  };
+}
+
 function interleaveEverydayCues(
   regionCues: SoundCue[],
   cultureCues: SoundCue[],
@@ -639,7 +755,9 @@ export function getSelectedSoundCues(
   context: LocationContext,
   narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): SoundCue[] {
-  const providedCues = getProvidedNarrativeCues(narrativeAnchors);
+  const effectiveNarrativeAnchors =
+    narrativeAnchors ?? getRuleBasedNarrativeAnchors(context);
+  const providedCues = getProvidedNarrativeCues(effectiveNarrativeAnchors);
   const placeCues = getPlaceSoundAnchor(context)?.cues ?? [];
   const regionCues = REGION_CUES[context.regionType] ?? REGION_CUES.rural;
   const cultureCues = isEverydayCultureRegion(context.regionType)
@@ -649,9 +767,9 @@ export function getSelectedSoundCues(
 
   if (placeCues.length > 0 || providedCues.length > 0) {
     const prioritizedNarrativeCues =
-      narrativeAnchors?.source === 'llm' ? providedCues : [];
+      effectiveNarrativeAnchors?.source === 'llm' ? providedCues : [];
     const secondaryNarrativeCues =
-      narrativeAnchors?.source === 'llm' ? [] : providedCues;
+      effectiveNarrativeAnchors?.source === 'llm' ? [] : providedCues;
 
     return dedupeCues([
       ...prioritizedNarrativeCues,
@@ -675,19 +793,23 @@ export function getSignatureCue(
   narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): SoundCue {
   const placeAnchor = getPlaceSoundAnchor(context);
+  const effectiveNarrativeAnchors =
+    narrativeAnchors ?? getRuleBasedNarrativeAnchors(context);
   const preferNarrativeSignature =
-    narrativeAnchors?.source === 'llm' && !placeAnchor?.signature && !placeAnchor?.cues[0];
+    effectiveNarrativeAnchors?.source === 'llm' &&
+    !placeAnchor?.signature &&
+    !placeAnchor?.cues[0];
 
   return (
-    (preferNarrativeSignature ? narrativeAnchors?.signature : undefined) ??
-    (preferNarrativeSignature ? narrativeAnchors?.cues[0] : undefined) ??
+    (preferNarrativeSignature ? effectiveNarrativeAnchors?.signature : undefined) ??
+    (preferNarrativeSignature ? effectiveNarrativeAnchors?.cues[0] : undefined) ??
     placeAnchor?.signature ??
     placeAnchor?.cues[0] ??
-    narrativeAnchors?.signature ??
-    narrativeAnchors?.cues[0] ??
+    effectiveNarrativeAnchors?.signature ??
+    effectiveNarrativeAnchors?.cues[0] ??
     CULTURE_SIGNATURES[context.cultureRegion] ??
     (context.nearWater ? WATER_CUES[context.nearWater] : undefined) ??
-    getSelectedSoundCues(context, narrativeAnchors)[0] ??
+    getSelectedSoundCues(context, effectiveNarrativeAnchors)[0] ??
     REGION_CUES.rural[0]
   );
 }
@@ -697,13 +819,15 @@ export function getCulturalAtmosphereTone(
   narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): string {
   const placeAnchor = getPlaceSoundAnchor(context);
+  const effectiveNarrativeAnchors =
+    narrativeAnchors ?? getRuleBasedNarrativeAnchors(context);
 
   if (placeAnchor?.atmosphereTone) {
     return placeAnchor.atmosphereTone;
   }
 
-  if (narrativeAnchors?.atmosphereTone) {
-    return narrativeAnchors.atmosphereTone;
+  if (effectiveNarrativeAnchors?.atmosphereTone) {
+    return effectiveNarrativeAnchors.atmosphereTone;
   }
 
   return CULTURAL_ATMOSPHERE_TONES[context.cultureRegion] ?? 'local acoustic colors';
@@ -714,16 +838,19 @@ export function getPromptSpecificityInstruction(
   narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): string {
   const locationName = getSummaryLocationName(context);
+  const effectiveNarrativeAnchors =
+    narrativeAnchors ?? getRuleBasedNarrativeAnchors(context);
+  const featuredCue = getSignatureCue(context, effectiveNarrativeAnchors);
 
-  if (narrativeAnchors?.specificityInstruction) {
-    return narrativeAnchors.specificityInstruction;
+  if (effectiveNarrativeAnchors?.specificityInstruction) {
+    return effectiveNarrativeAnchors.specificityInstruction;
   }
 
   if (getPlaceSoundAnchor(context)) {
-    return `Prioritize the concrete local anchors above so the scene is recognisably ${locationName}, not just a generic ${context.cultureRegion.replace(/_/g, ' ')} setting.`;
+    return `Prioritize the concrete local anchors above, especially ${featuredCue.label.en}, so the scene is recognisably ${locationName}, not just a generic ${context.cultureRegion.replace(/_/g, ' ')} setting.`;
   }
 
-  return `Favor the kind of everyday detail that residents of ${locationName} would recognize immediately, and avoid falling back to generic regional stock sounds.`;
+  return `Center the scene on one precise routine residents of ${locationName} would recognize immediately, such as ${featuredCue.label.en}, and avoid falling back to generic regional stock sounds.`;
 }
 
 export function getSoundSummary(
@@ -732,35 +859,40 @@ export function getSoundSummary(
   narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): string {
   const cues = getSelectedSoundCues(context, narrativeAnchors);
+  const featuredCue = getSignatureCue(context, narrativeAnchors);
   const locationName = getSummaryLocationName(context);
   const settingLabel = getSummarySettingLabel(context, locale);
+  const featuredLabel = featuredCue.label[locale];
+  const supportingLabels = cues
+    .filter((cue) => cue.prompt !== featuredCue.prompt)
+    .map((cue) => cue.label[locale])
+    .slice(0, 2);
 
-  if (cues.length === 0) {
+  if (!featuredLabel && cues.length === 0) {
     return locale === 'zh-CN'
-      ? `在${locationName}，会以这类${settingLabel}真实可能出现的日常环境声为主。`
+      ? `在${locationName}，会围绕贴近${settingLabel}的真实日常细节展开。`
       : `In ${locationName}, the sound stays grounded in everyday ambience that plausibly belongs to this ${settingLabel}.`;
   }
 
-  const labels = cues.map((cue) => cue.label[locale]);
   if (locale === 'zh-CN') {
-    if (labels.length === 1) {
-      return `在${locationName}，会更接近${settingLabel}的日常声场，以${labels[0]}为主。`;
+    if (supportingLabels.length === 0) {
+      return `在${locationName}，声音会围绕${featuredLabel}展开，整体贴近${settingLabel}里真实可闻的日常。`;
     }
 
-    if (labels.length === 2) {
-      return `在${locationName}，会更接近${settingLabel}的日常声场，以${labels[0]}和${labels[1]}为主。`;
+    if (supportingLabels.length === 1) {
+      return `在${locationName}，声音会围绕${featuredLabel}展开，整体贴近${settingLabel}，周围带着${supportingLabels[0]}。`;
     }
 
-    return `在${locationName}，会更接近${settingLabel}的日常声场，以${labels[0]}、${labels[1]}，以及${labels[2]}为主。`;
+    return `在${locationName}，声音会围绕${featuredLabel}展开，整体贴近${settingLabel}，周围带着${supportingLabels[0]}和${supportingLabels[1]}。`;
   }
 
-  if (labels.length === 1) {
-    return `In ${locationName}, expect the everyday sound field of a ${settingLabel}, centered on ${labels[0]}.`;
+  if (supportingLabels.length === 0) {
+    return `In ${locationName}, the scene revolves around ${featuredLabel}, grounded in the everyday sound of this ${settingLabel}.`;
   }
 
-  if (labels.length === 2) {
-    return `In ${locationName}, expect the everyday sound field of a ${settingLabel}, centered on ${labels[0]} and ${labels[1]}.`;
+  if (supportingLabels.length === 1) {
+    return `In ${locationName}, the scene revolves around ${featuredLabel}, grounded in the everyday sound of this ${settingLabel}, with ${supportingLabels[0]} around it.`;
   }
 
-  return `In ${locationName}, expect the everyday sound field of a ${settingLabel}, centered on ${labels[0]}, ${labels[1]}, and ${labels[2]}.`;
+  return `In ${locationName}, the scene revolves around ${featuredLabel}, grounded in the everyday sound of this ${settingLabel}, with ${supportingLabels[0]} and ${supportingLabels[1]} around it.`;
 }

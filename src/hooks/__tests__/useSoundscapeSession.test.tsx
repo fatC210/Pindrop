@@ -19,6 +19,7 @@ const {
   mockUpdatePlayStats,
   mockAddLocationHistory,
   mockHasApiKey,
+  mockLocaleState,
 } = vi.hoisted(() => ({
   mockUseAudioPlayer: vi.fn(),
   mockResolveLocation: vi.fn(),
@@ -33,12 +34,13 @@ const {
   mockUpdatePlayStats: vi.fn(),
   mockAddLocationHistory: vi.fn(),
   mockHasApiKey: vi.fn(),
+  mockLocaleState: { value: 'en' as 'en' | 'zh-CN' },
 }));
 
 vi.mock('@/i18n/I18nProvider', () => ({
   useI18n: () => ({
-    locale: 'en',
-    messages: getMessages('en'),
+    locale: mockLocaleState.value,
+    messages: getMessages(mockLocaleState.value),
     setLocale: vi.fn(),
   }),
 }));
@@ -102,7 +104,6 @@ vi.mock('@/utils/soundscape', () => ({
 
 vi.mock('@/utils/elevenLabsClient', () => ({
   DEFAULT_RENDER_DURATION_SECONDS: 22,
-  generateAmbientPreviewAudio: vi.fn(),
   generateDynamicEventAudio: vi.fn(),
   generateSoundscapeAudio: mockGenerateSoundscapeAudio,
 }));
@@ -184,6 +185,7 @@ function createLocationContext(
   overrides: Partial<LocationContext> = {}
 ): LocationContext {
   return {
+    administrativeRegionName: 'Ile-de-France',
     cityName: 'Paris',
     regionName: 'Ile-de-France',
     countryName: 'France',
@@ -211,8 +213,8 @@ function createCachedSoundscape() {
     id: 'ready-cache',
     coordinates: [48.8566, 2.3522] as [number, number],
     timeSlot: 'day' as const,
-    cityName: 'Paris',
-    countryName: 'France',
+    cityName: 'Kutaisi',
+    countryName: 'Georgia',
     generatedAt: 1700000000000,
     playCount: 0,
     lastPlayedAt: 1700000000000,
@@ -222,7 +224,13 @@ function createCachedSoundscape() {
     },
     recipe: {
       id: 'ready-cache',
-      location: createLocationContext(),
+      location: createLocationContext({
+        cityName: 'Kutaisi',
+        regionName: 'Imereti',
+        countryName: 'Georgia',
+        cultureRegion: 'eastern_europe',
+        nearWater: 'river',
+      }),
       generatedAt: 1700000000000,
       localTimeAtGeneration: '12:00',
       layers: {
@@ -280,6 +288,37 @@ function createCachedSoundscape() {
           music: 0.4,
         },
       },
+      narrativeAnchors: {
+        source: 'llm',
+        confidence: 0.91,
+        summary: {
+          en: 'A riverside bookseller is setting out paperbacks while accordion phrases drift across the quay.',
+          'zh-CN': '\u6cb3\u5cb8\u65e7\u4e66\u644a\u6b63\u5728\u6446\u51fa\u7eb8\u8d28\u4e66\u672c\uff0c\u624b\u98ce\u7434\u7247\u6bb5\u5728\u7801\u5934\u8fb9\u8f7b\u8f7b\u98d8\u5f00\u3002',
+        },
+        signature: {
+          prompt: 'accordion phrases curling out from a riverside book market',
+          label: {
+            en: 'riverside accordion phrases',
+            'zh-CN': '\u6cb3\u7554\u624b\u98ce\u7434\u7247\u6bb5',
+          },
+        },
+        cues: [
+          {
+            prompt: 'accordion phrases curling out from a riverside book market',
+            label: {
+              en: 'riverside accordion phrases',
+              'zh-CN': '\u6cb3\u7554\u624b\u98ce\u7434\u7247\u6bb5',
+            },
+          },
+          {
+            prompt: 'bookstalls opening along the river walk',
+            label: {
+              en: 'opening bookstalls',
+              'zh-CN': '\u521d\u5f00\u7684\u4e66\u644a',
+            },
+          },
+        ],
+      },
     },
   };
 }
@@ -298,6 +337,7 @@ function createDeferred<T>() {
 describe('useSoundscapeSession deletion flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockLocaleState.value = 'en';
     vi.stubGlobal('URL', {
       createObjectURL: vi.fn(() => 'blob:mock'),
       revokeObjectURL: vi.fn(),
@@ -309,8 +349,28 @@ describe('useSoundscapeSession deletion flow', () => {
     mockDeleteCachedSoundscape.mockResolvedValue(undefined);
     mockUpdatePlayStats.mockResolvedValue(undefined);
     mockAddLocationHistory.mockResolvedValue(1);
-    mockGetLlmEnhancementConfig.mockReturnValue(null);
-    mockEnrichSoundscapeNarrative.mockResolvedValue(null);
+    mockGetLlmEnhancementConfig.mockReturnValue({
+      baseUrl: 'https://example.com/v1',
+      model: 'gpt-test',
+      apiKey: 'sk-test',
+    });
+    mockEnrichSoundscapeNarrative.mockResolvedValue({
+      source: 'llm',
+      confidence: 0.82,
+      summary: {
+        en: 'A market stall is rolling up its shutter and setting out bowls while the lane wakes up.',
+        'zh-CN': '\u4e00\u4e2a\u644a\u4f4d\u6b63\u5728\u62c9\u8d77\u5377\u95f8\u95e8\u5e76\u6446\u51fa\u7897\u76cf\uff0c\u5c0f\u5df7\u4e5f\u8ddf\u7740\u9192\u6765\u3002',
+      },
+      cues: [
+        {
+          prompt: 'one market stall rolling up a metal shutter and setting out bowls',
+          label: {
+            en: 'a market stall opening',
+            'zh-CN': '一个摊位拉起卷闸门准备开张',
+          },
+        },
+      ],
+    });
     mockHasApiKey.mockReturnValue(true);
     mockGenerateRecipe.mockImplementation((location: LocationContext) => ({
       id: 'generated-cache',
@@ -466,7 +526,7 @@ describe('useSoundscapeSession deletion flow', () => {
     expect(result.current.mapPins).toHaveLength(0);
   });
 
-  test('passes optional LLM narrative anchors into recipe generation when configured', async () => {
+  test('passes required LLM narrative anchors into recipe generation', async () => {
     const location = createLocationContext({
       cityName: 'Gdansk',
       countryName: 'Poland',
@@ -507,6 +567,46 @@ describe('useSoundscapeSession deletion flow', () => {
         narrativeAnchors: anchors,
       });
     });
+    expect(mockEnrichSoundscapeNarrative).toHaveBeenCalledWith(
+      location,
+      expect.objectContaining({
+        baseUrl: 'https://example.com/v1',
+        model: 'gpt-test',
+        apiKey: 'sk-test',
+      }),
+      'en'
+    );
+    expect(result.current.locationEntries.every((entry) => entry.narrativeSource !== 'rules')).toBe(
+      true
+    );
+  });
+
+  test('stops generation when the LLM does not return a usable narrative', async () => {
+    const location = createLocationContext({
+      cityName: 'Shitan',
+      regionName: 'Xiangtan County',
+      countryName: 'China',
+      cultureRegion: 'east_asia',
+      regionType: 'town',
+    });
+
+    mockResolveLocation.mockResolvedValue(location);
+    mockEnrichSoundscapeNarrative.mockResolvedValue(null);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await act(async () => {
+      await result.current.handleCoordinateSelect(27.83, 112.95);
+    });
+
+    await waitFor(() => {
+      expect(result.current.locationEntries[0]?.status).toBe('error');
+    });
+
+    expect(mockGenerateRecipe).not.toHaveBeenCalled();
+    expect(result.current.locationEntries[0]?.errorMessage).toBe(
+      'PinDrop could not get a concrete place-specific scene from the LLM, so generation was stopped.'
+    );
   });
 
   test('does not expose cached entries that only contain short non-bed fragments', async () => {
@@ -528,5 +628,105 @@ describe('useSoundscapeSession deletion flow', () => {
     });
 
     expect(mockDeleteCachedSoundscape).toHaveBeenCalledWith('short-only-cache');
+  });
+
+  test('shows the LLM-generated description instead of the raw atmosphere prompt for cached entries', async () => {
+    mockGetCachedMarkers.mockResolvedValue([createCachedSoundscape()]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toContain(
+      'A riverside bookseller is setting out paperbacks'
+    );
+    expect(result.current.locationEntries[0]?.sceneDescription).not.toBe('soft accordion');
+    expect(result.current.locationEntries[0]?.soundDescription).toBeUndefined();
+  });
+
+  test('shows the LLM-generated description while a location is still rendering', async () => {
+    const deferredAudio = createDeferred<{ blobs: { ambient: Blob } }>();
+    mockResolveLocation.mockResolvedValue(createLocationContext());
+    mockGenerateSoundscapeAudio.mockReturnValue(deferredAudio.promise);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await act(async () => {
+      await result.current.handleCoordinateSelect(48.8566, 2.3522);
+    });
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+      expect(result.current.locationEntries[0]?.status).toBe('loading');
+      expect(result.current.locationEntries[0]?.sceneDescription).toContain(
+        'A market stall is rolling up its shutter'
+      );
+      expect(result.current.locationEntries[0]?.soundDescription).toBeUndefined();
+    });
+
+    await act(async () => {
+      deferredAudio.resolve({
+        blobs: {
+          ambient: new Blob(['ambient']),
+        },
+      });
+      await deferredAudio.promise;
+    });
+  });
+
+  test('recomputes the LLM description in Chinese when the interface locale is Chinese', async () => {
+    mockLocaleState.value = 'zh-CN';
+    mockGetCachedMarkers.mockResolvedValue([createCachedSoundscape()]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toContain(
+      '\u6cb3\u5cb8\u65e7\u4e66\u644a'
+    );
+    expect(result.current.locationEntries[0]?.soundDescription).toBeUndefined();
+  });
+
+  test('does not show a description when cached LLM text does not match the interface language', async () => {
+    mockLocaleState.value = 'zh-CN';
+    mockGetCachedMarkers.mockResolvedValue([
+      {
+        ...createCachedSoundscape(),
+        recipe: {
+          ...createCachedSoundscape().recipe,
+          narrativeAnchors: {
+            source: 'llm',
+            confidence: 0.91,
+            summary: {
+              en: 'Cues: 1. Bronze temple bell ringing across the valley. 2. Canvas tarps being folded.',
+              'zh-CN':
+                'Cues: 1. Bronze temple bell ringing across the valley. 2. Canvas tarps being folded.',
+            },
+            cues: [
+              {
+                prompt: 'bronze temple bell ringing across the valley',
+                label: {
+                  en: 'bronze temple bell',
+                  'zh-CN': 'bronze temple bell',
+                },
+              },
+            ],
+          },
+        },
+      },
+    ]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toBeUndefined();
   });
 });

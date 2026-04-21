@@ -23,7 +23,7 @@ export const PREFERENCES_KEY = 'pindrop_preferences';
 /** localStorage key for the ElevenLabs API key */
 export const API_KEY_KEY = 'pindrop_api_key';
 
-/** localStorage key for the optional OpenAI-compatible LLM API key */
+/** localStorage key for the required OpenAI-compatible LLM API key */
 export const LLM_API_KEY_KEY = 'pindrop_llm_api_key';
 
 /** Custom window event dispatched when settings-related local state changes. */
@@ -322,7 +322,7 @@ export function clearApiKey(): void {
 }
 
 /**
- * Stores the OpenAI-compatible LLM API key in localStorage.
+ * Stores the required OpenAI-compatible LLM API key in localStorage.
  */
 export function storeLlmApiKey(apiKey: string): void {
   try {
@@ -366,9 +366,8 @@ export interface LlmEnhancementConfig extends LlmEnhancementSettings {
 }
 
 /**
- * Returns the optional OpenAI-compatible LLM configuration when all required
- * fields are present. Otherwise returns null and the app falls back to the
- * built-in rule-based prompts.
+ * Returns the required OpenAI-compatible LLM configuration when all required
+ * fields are present. Otherwise returns null and generation must stay blocked.
  */
 export function getLlmEnhancementConfig(): LlmEnhancementConfig | null {
   const preferences = preferencesStore.loadPreferences();

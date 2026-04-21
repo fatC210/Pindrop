@@ -8,9 +8,11 @@ import type {
 import type { AudioBlobMap, LayerType } from '@/utils/audio/types';
 import { getApiKeyHeader } from './apiHeaders';
 
-const ELEVENLABS_API_BASE_URL = 'https://api.elevenlabs.io/v1';
+const ELEVENLABS_PROXY_BASE_URL = '/api/elevenlabs';
 export const DEFAULT_RENDER_DURATION_SECONDS = 22;
+export const MAX_SOUND_EFFECT_PROMPT_LENGTH = 450;
 const PREVIEW_DURATION_SECONDS = 4;
+const ELEVENLABS_PROXY_API_KEY_HEADER = 'x-elevenlabs-api-key';
 
 interface ElevenLabsVoice {
   voice_id?: string;
@@ -32,7 +34,7 @@ function createAuthorizedHeaders(contentType?: string): Headers {
   }
 
   const headers = new Headers();
-  headers.set('xi-api-key', apiKeyHeader['xi-api-key']);
+  headers.set(ELEVENLABS_PROXY_API_KEY_HEADER, apiKeyHeader['xi-api-key']);
   if (contentType) {
     headers.set('content-type', contentType);
   }
@@ -40,19 +42,70 @@ function createAuthorizedHeaders(contentType?: string): Headers {
   return headers;
 }
 
+async function extractErrorMessage(response: Response): Promise<string> {
+  const contentType = response.headers.get('content-type') ?? '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      const payload = (await response.clone().json()) as
+        | {
+            detail?: string | { message?: string };
+            error?: string;
+            message?: string;
+          }
+        | null;
+
+      const detail =
+        typeof payload?.detail === 'string'
+          ? payload.detail
+          : payload?.detail?.message;
+
+      if (typeof detail === 'string' && detail.trim().length > 0) {
+        return detail.trim();
+      }
+
+      if (typeof payload?.error === 'string' && payload.error.trim().length > 0) {
+        return payload.error.trim();
+      }
+
+      if (typeof payload?.message === 'string' && payload.message.trim().length > 0) {
+        return payload.message.trim();
+      }
+    } catch {
+      // Fall through to text/status handling below.
+    }
+  }
+
+  const responseText = await response.text().catch(() => '');
+  if (responseText.trim().length > 0) {
+    return responseText.trim();
+  }
+
+  switch (response.status) {
+    case 401:
+      return 'ElevenLabs API key invalid or expired.';
+    case 404:
+      return 'The requested ElevenLabs endpoint is unavailable.';
+    case 422:
+      return 'ElevenLabs rejected the request payload.';
+    default:
+      return response.statusText || 'ElevenLabs request failed';
+  }
+}
+
 async function fetchProxy(
   path: string,
   init: RequestInit = {}
 ): Promise<Response> {
-  const response = await fetch(`${ELEVENLABS_API_BASE_URL}/${path}`, {
+  const response = await fetch(`${ELEVENLABS_PROXY_BASE_URL}/${path}`, {
     ...init,
     headers: init.headers ?? createAuthorizedHeaders(),
   });
 
   if (!response.ok) {
-    const responseText = await response.text().catch(() => '');
+    const responseText = await extractErrorMessage(response);
     throw new Error(
-      `ElevenLabs request failed (${response.status}): ${responseText || response.statusText}`
+      `ElevenLabs request failed (${response.status}): ${responseText}`
     );
   }
 
@@ -143,6 +196,39 @@ async function resolveVoiceId(
   return firstVoice.voice_id;
 }
 
+function normalizeSoundEffectPrompt(prompt: string): string {
+  const normalizedPrompt = prompt.replace(/\s+/g, ' ').trim();
+
+  if (normalizedPrompt.length <= MAX_SOUND_EFFECT_PROMPT_LENGTH) {
+    return normalizedPrompt;
+  }
+
+  const sentenceFragments = normalizedPrompt.split(/(?<=[.!?])\s+/);
+  let condensedPrompt = '';
+
+  for (const fragment of sentenceFragments) {
+    const nextPrompt = condensedPrompt ? `${condensedPrompt} ${fragment}` : fragment;
+    if (nextPrompt.length > MAX_SOUND_EFFECT_PROMPT_LENGTH) {
+      break;
+    }
+
+    condensedPrompt = nextPrompt;
+  }
+
+  if (condensedPrompt.length >= Math.min(160, MAX_SOUND_EFFECT_PROMPT_LENGTH)) {
+    return condensedPrompt;
+  }
+
+  const truncatedPrompt = normalizedPrompt.slice(0, MAX_SOUND_EFFECT_PROMPT_LENGTH);
+  const lastWordBoundary = truncatedPrompt.lastIndexOf(' ');
+
+  if (lastWordBoundary >= 120) {
+    return truncatedPrompt.slice(0, lastWordBoundary).trimEnd();
+  }
+
+  return truncatedPrompt.trimEnd();
+}
+
 async function generateDialogueBlob(layer: DialogueLayer): Promise<Blob> {
   const voiceId = await resolveVoiceId(layer.voiceId, layer.language);
   const payload = {
@@ -167,7 +253,7 @@ async function generateSoundEffectBlob(
   durationSeconds: number
 ): Promise<Blob> {
   const payload = {
-    text: layer.prompt.trim(),
+    text: normalizeSoundEffectPrompt(layer.prompt),
     duration_seconds: durationSeconds,
     prompt_influence: 0.35,
   };
@@ -184,11 +270,12 @@ async function generateAtmosphereBlob(
   durationSeconds: number
 ): Promise<Blob> {
   const payload = {
-    text: layer.prompt.trim(),
-    duration_seconds: durationSeconds,
+    prompt: layer.prompt.trim(),
+    music_length_ms: Math.max(3000, Math.round(durationSeconds * 1000)),
+    model_id: 'music_v1',
   };
 
-  return fetchBinaryWithFallback(['music-generation', 'music'], {
+  return fetchBinaryWithFallback(['music'], {
     method: 'POST',
     headers: createAuthorizedHeaders('application/json'),
     body: JSON.stringify(payload),
@@ -309,7 +396,7 @@ export async function generateDynamicEventAudio(prompt: string): Promise<Blob> {
     method: 'POST',
     headers: createAuthorizedHeaders('application/json'),
     body: JSON.stringify({
-      text: prompt,
+      text: normalizeSoundEffectPrompt(prompt),
       duration_seconds: 6,
       prompt_influence: 0.35,
     }),

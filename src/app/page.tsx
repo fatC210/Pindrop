@@ -38,20 +38,34 @@ function joinLocationParts(parts: Array<string | undefined>, locale: AppLocale):
 }
 
 function formatLocationTitle(
-  entry: Pick<SessionLocationEntry, 'cityName' | 'regionName' | 'countryName'>,
+  entry: Pick<
+    SessionLocationEntry,
+    'administrativeRegionName' | 'cityName' | 'regionName' | 'countryName'
+  >,
   localizedLabel: LocalizedPlaceName | undefined,
   locale: AppLocale
 ): string {
+  const administrativeRegionName =
+    localizedLabel?.administrativeRegionName ?? entry.administrativeRegionName;
   const regionName = localizedLabel?.regionName ?? entry.regionName;
   const cityName = localizedLabel?.cityName ?? entry.cityName;
   const countryName = localizedLabel?.countryName ?? entry.countryName;
-
-  return joinLocationParts(
+  const orderedParts =
     locale === 'zh-CN'
-      ? [countryName, cityName, regionName]
-      : [regionName, cityName, countryName],
-    locale
-  );
+      ? [countryName, administrativeRegionName, cityName, regionName]
+      : [regionName, cityName, administrativeRegionName, countryName];
+
+  if (locale === 'zh-CN') {
+    return Array.from(
+      new Set(
+        orderedParts
+          .map((part) => part?.trim())
+          .filter((part): part is string => Boolean(part))
+      )
+    ).join('，');
+  }
+
+  return joinLocationParts(orderedParts, locale);
 }
 
 function formatPlaybackTime(totalSeconds: number): string {
@@ -67,15 +81,17 @@ export default function Home(): React.JSX.Element {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [focusedCoordinates, setFocusedCoordinates] = useState<[number, number] | null>(null);
   const [pendingListFocusLocationId, setPendingListFocusLocationId] = useState<string | null>(null);
+  const [mapFocusedLocationId, setMapFocusedLocationId] = useState<string | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const locationCardRefs = useRef<Record<string, HTMLElement | null>>({});
+  const mapFocusResetTimeoutRef = useRef<number | null>(null);
   const session = useSoundscapeSession();
-  const shouldShowApiKeyPrompt = session.hasConfiguredApiKey === false;
-  const visibleLocationEntries = shouldShowApiKeyPrompt
+  const shouldShowGenerationSetupPrompt = session.hasConfiguredApiKey === false;
+  const visibleLocationEntries = shouldShowGenerationSetupPrompt
     ? session.locationEntries.filter((entry) => entry.status !== 'ready')
     : session.locationEntries;
-  const visibleMapPins = shouldShowApiKeyPrompt
+  const visibleMapPins = shouldShowGenerationSetupPrompt
     ? session.mapPins.filter((pin) => pin.isGenerating)
     : session.mapPins;
   const localizedLocationLabels = useLocalizedLocationLabels(visibleLocationEntries, locale);
@@ -88,6 +104,10 @@ export default function Home(): React.JSX.Element {
   const generatingLabel = locale === 'zh-CN' ? '生成中' : 'Generating';
   const failedLabel = locale === 'zh-CN' ? '生成失败' : 'Failed';
   const pendingLocationLabel = locale === 'zh-CN' ? '待识别地点' : 'Pending location';
+
+  const emptyGeneratedPlacesTitle = locale === 'zh-CN' ? '还没有生成任务' : 'No places yet';
+
+  void emptyGeneratedPlacesTitle;
 
   const handleToggleSettings = useCallback((): void => {
     setIsSettingsOpen((current) => !current);
@@ -143,8 +163,30 @@ export default function Home(): React.JSX.Element {
       block: 'center',
       inline: 'nearest',
     });
+    targetCard.focus({ preventScroll: true });
     setPendingListFocusLocationId(null);
   }, [pendingListFocusLocationId, visibleLocationEntries]);
+
+  useEffect(() => {
+    return (): void => {
+      if (mapFocusResetTimeoutRef.current !== null) {
+        window.clearTimeout(mapFocusResetTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const highlightLocationFromMap = useCallback((locationId: string): void => {
+    setMapFocusedLocationId(locationId);
+
+    if (mapFocusResetTimeoutRef.current !== null) {
+      window.clearTimeout(mapFocusResetTimeoutRef.current);
+    }
+
+    mapFocusResetTimeoutRef.current = window.setTimeout(() => {
+      setMapFocusedLocationId((current) => (current === locationId ? null : current));
+      mapFocusResetTimeoutRef.current = null;
+    }, 1800);
+  }, []);
 
   const handleLanguageChange = useCallback(
     (nextLocale: AppLocale): void => {
@@ -174,27 +216,22 @@ export default function Home(): React.JSX.Element {
       if (matchingEntry) {
         setFocusedCoordinates([matchingEntry.coordinates[0], matchingEntry.coordinates[1]]);
         setPendingListFocusLocationId(matchingEntry.id);
+        highlightLocationFromMap(matchingEntry.id);
       }
 
-      void session.handleMarkerSelect(cacheKey);
+      void session.handleLocationSelect(cacheKey);
     },
-    [session, visibleLocationEntries]
+    [highlightLocationFromMap, session, visibleLocationEntries]
   );
 
-  const handleLocationFocus = useCallback((coordinates: [number, number]): void => {
-    setFocusedCoordinates([coordinates[0], coordinates[1]]);
+  const handleLocationFocus = useCallback((entry: SessionLocationEntry): void => {
+    setMapFocusedLocationId(null);
+    setFocusedCoordinates([entry.coordinates[0], entry.coordinates[1]]);
   }, []);
 
   const handleLocationDelete = useCallback(
     (entry: Pick<SessionLocationEntry, 'id' | 'cacheKey' | 'status'>): void => {
       void session.deleteLocationEntry(entry);
-    },
-    [session]
-  );
-
-  const handleHoverPreview = useCallback(
-    (lat: number, lng: number): void => {
-      void session.handleHoverPreview(lat, lng);
     },
     [session]
   );
@@ -298,13 +335,8 @@ export default function Home(): React.JSX.Element {
             theme="light"
             markers={visibleMapPins}
             focusedCoordinates={focusedCoordinates}
-            canPreview={
-              session.hasConfiguredApiKey === true && session.hasActiveGeneration === false
-            }
             onCoordinateSelect={handleCoordinateSelect}
             onMarkerSelect={handleMarkerSelect}
-            onHoverPreview={handleHoverPreview}
-            onHoverEnd={session.handleHoverEnd}
           />
         </section>
 
@@ -316,7 +348,7 @@ export default function Home(): React.JSX.Element {
             ) : null}
           </div>
 
-          {shouldShowApiKeyPrompt ? (
+          {shouldShowGenerationSetupPrompt ? (
             <section className={styles.apiKeyNotice} aria-live="polite">
               <div className={styles.apiKeyNoticeCopy}>
                 <p className={styles.apiKeyNoticeTitle}>{messages.home.apiKeyRequiredTitle}</p>
@@ -333,10 +365,26 @@ export default function Home(): React.JSX.Element {
             </section>
           ) : null}
 
-          <div className={styles.locationList}>
+          <div
+            className={`${styles.locationList}${
+              visibleLocationEntries.length === 0 && !shouldShowGenerationSetupPrompt
+                ? ` ${styles.locationListEmpty}`
+                : ''
+            }`}
+          >
             {visibleLocationEntries.length === 0 ? (
-              shouldShowApiKeyPrompt ? null : (
-                <p className={styles.emptyLocations}>{emptyGeneratedPlacesLabel}</p>
+              shouldShowGenerationSetupPrompt ? null : (
+                <div className={styles.emptyLocations} role="status" aria-live="polite">
+                  <div className={styles.emptyLocationsIcon} aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path
+                        d="M12 3.5a5.75 5.75 0 0 1 5.75 5.75c0 4.35-4.44 8.73-5.23 9.47a.75.75 0 0 1-1.04 0c-.79-.74-5.23-5.12-5.23-9.47A5.75 5.75 0 0 1 12 3.5m0 1.5a4.25 4.25 0 0 0-4.25 4.25c0 2.87 2.75 6.12 4.25 7.62 1.5-1.5 4.25-4.75 4.25-7.62A4.25 4.25 0 0 0 12 5m0 2.25a2 2 0 1 1 0 4 2 2 0 0 1 0-4"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </div>
+                  <p className={styles.emptyLocationsText}>{emptyGeneratedPlacesLabel}</p>
+                </div>
               )
             ) : (
               visibleLocationEntries.map((entry) => {
@@ -345,6 +393,7 @@ export default function Home(): React.JSX.Element {
                   session.activePlaybackLocationId === entry.cacheKey &&
                   (session.playbackState.state === 'playing' ||
                     session.playbackState.state === 'paused');
+                const isMapFocusedLocation = mapFocusedLocationId === entry.id;
                 const isReadyEntry = entry.status === 'ready';
                 const isPlayingLocation =
                   isActiveLocation && session.playbackState.state === 'playing';
@@ -389,14 +438,16 @@ export default function Home(): React.JSX.Element {
                     ref={(node) => {
                       locationCardRefs.current[entry.id] = node;
                     }}
+                    tabIndex={-1}
+                    data-map-focused={isMapFocusedLocation ? 'true' : 'false'}
                     className={`${styles.locationCard}${
                       entry.status === 'error'
                         ? ` ${styles.locationCardError}`
                         : isActiveLocation
                           ? ` ${styles.locationCardActive}`
                           : ''
-                    }`}
-                    onClick={() => handleLocationFocus(entry.coordinates)}
+                    }${isMapFocusedLocation ? ` ${styles.locationCardMapFocused}` : ''}`}
+                    onClick={() => handleLocationFocus(entry)}
                   >
                     <div className={styles.locationCardHeader}>
                       <div className={styles.locationTitleGroup}>

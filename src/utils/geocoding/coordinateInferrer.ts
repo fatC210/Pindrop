@@ -86,6 +86,7 @@ export function buildPolarContext(lat: number, lng: number): LocationContext {
 
   return {
     // 基础地理
+    administrativeRegionName: undefined,
     cityName,
     countryName: 'Polar Region',
     regionType: 'polar',
@@ -139,6 +140,7 @@ export function buildOceanContext(lat: number, lng: number): LocationContext {
 
   return {
     // 基础地理
+    administrativeRegionName: undefined,
     cityName: 'Ocean',
     countryName: 'International Waters',
     regionType: 'ocean',
@@ -196,6 +198,7 @@ export function buildWildernessContext(
 
   return {
     // 基础地理
+    administrativeRegionName: undefined,
     cityName,
     countryName: 'Unknown',
     regionType: 'wilderness',

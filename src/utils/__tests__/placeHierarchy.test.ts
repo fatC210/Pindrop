@@ -19,6 +19,7 @@ describe('extractPlaceHierarchy', () => {
         }
       )
     ).toEqual({
+      administrativeRegionName: undefined,
       cityName: '泉州市',
       regionName: '丰泽区',
       countryName: '中国',
@@ -39,6 +40,7 @@ describe('extractPlaceHierarchy', () => {
         }
       )
     ).toEqual({
+      administrativeRegionName: '北京市',
       cityName: '北京市',
       regionName: '西城区',
       countryName: '中国',
@@ -60,9 +62,34 @@ describe('extractPlaceHierarchy', () => {
         }
       )
     ).toEqual({
+      administrativeRegionName: 'Missouri',
       cityName: 'Springfield',
       regionName: 'Greene County',
       countryName: 'United States',
+    });
+  });
+
+  it('ignores street-level county and district names', () => {
+    expect(
+      extractPlaceHierarchy(
+        {
+          state: 'Guangdong',
+          city: 'Zhaoqing',
+          county: '端州区',
+          district: '人民路',
+          neighbourhood: '城东街道',
+          country: 'China',
+        },
+        {
+          unknownLocationLabel: 'Unknown Location',
+          unknownCountryLabel: 'Unknown Country',
+        }
+      )
+    ).toEqual({
+      administrativeRegionName: 'Guangdong',
+      cityName: 'Zhaoqing',
+      regionName: '端州区',
+      countryName: 'China',
     });
   });
 });

@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import { useI18n } from '@/i18n/I18nProvider';
+import type { AppLocale } from '@/i18n/types';
 import type { LayerType, AudioBlobMap, PlaybackStateInfo } from '@/utils/audio/types';
 import type { LocationContext } from '@/types/locationContext';
 import type { SoundscapeRecipe } from '@/types/soundscapeRecipe';
@@ -23,7 +24,6 @@ import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { resolveLocation } from '@/utils/geocoding';
 import { generateRecipe } from '@/utils/soundscape';
 import {
-  generateAmbientPreviewAudio,
   DEFAULT_RENDER_DURATION_SECONDS,
   generateDynamicEventAudio,
   generateSoundscapeAudio,
@@ -40,10 +40,10 @@ import { generateCacheKey } from '@/utils/cacheKey';
 import { hasApiKey } from '@/utils/apiHeaders';
 import type { TimeSlot } from '@/utils/timeSlot';
 import { enrichSoundscapeNarrative } from '@/utils/soundscape/llmAnchorEnricher';
-import { getSoundSummary } from '@/utils/soundscape/sceneNarrative';
 
 type SessionStatus = 'idle' | 'loading' | 'ready' | 'error';
 type GenerationJobStatus = 'resolving' | 'generating' | 'error';
+type NarrativeSource = 'llm' | 'rules';
 
 const INITIAL_PLAYBACK_STATE: PlaybackStateInfo = {
   state: 'idle',
@@ -61,6 +61,7 @@ interface GenerationJob {
   coordinateToken: string;
   coordinates: [number, number];
   cacheKey: string | null;
+  administrativeRegionName: string | null;
   cityName: string | null;
   regionName: string | null;
   countryName: string | null;
@@ -68,6 +69,8 @@ interface GenerationJob {
   createdAt: number;
   progress: number;
   status: GenerationJobStatus;
+  narrativeAnchors: SoundscapeRecipe['narrativeAnchors'] | null;
+  narrativeSource: NarrativeSource | null;
   errorMessage: string | null;
   locationContext: LocationContext | null;
 }
@@ -76,6 +79,7 @@ export interface SessionLocationEntry {
   id: string;
   cacheKey: string | null;
   coordinates: [number, number];
+  administrativeRegionName?: string;
   cityName: string;
   regionName?: string;
   countryName: string;
@@ -83,12 +87,29 @@ export interface SessionLocationEntry {
   createdAt: number;
   progress: number;
   status: 'loading' | 'ready' | 'error';
+  narrativeSource?: NarrativeSource | null;
   statusLabel: string;
   errorMessage: string | null;
   isPlayable: boolean;
   playbackDurationSeconds?: number;
   sceneDescription?: string;
   soundDescription?: string;
+}
+
+function textMatchesLocale(text: string, locale: AppLocale): boolean {
+  const normalized = text.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const hasCjk = /[\u3400-\u9fff]/.test(normalized);
+  const hasLatin = /[A-Za-z]/.test(normalized);
+
+  if (locale === 'zh-CN') {
+    return hasCjk || !hasLatin;
+  }
+
+  return hasLatin || !hasCjk;
 }
 
 export interface SessionMapPin {
@@ -243,20 +264,6 @@ async function filterPlayableCachedEntries(
   return validEntries;
 }
 
-function isWithinPreviewWindow(
-  previous: [number, number] | null,
-  next: [number, number]
-): boolean {
-  if (!previous) {
-    return false;
-  }
-
-  return (
-    Math.abs(previous[0] - next[0]) <= 5 &&
-    Math.abs(previous[1] - next[1]) <= 5
-  );
-}
-
 function sortCachedLocations(entries: CachedSoundscape[]): CachedSoundscape[] {
   return [...entries].sort((left, right) => right.generatedAt - left.generatedAt);
 }
@@ -283,6 +290,7 @@ function createGenerationJob(lat: number, lng: number): GenerationJob {
     coordinateToken: createCoordinateToken(lat, lng),
     coordinates: [lat, lng],
     cacheKey: null,
+    administrativeRegionName: null,
     cityName: null,
     regionName: null,
     countryName: null,
@@ -290,6 +298,8 @@ function createGenerationJob(lat: number, lng: number): GenerationJob {
     createdAt: Date.now(),
     progress: 8,
     status: 'resolving',
+    narrativeAnchors: null,
+    narrativeSource: null,
     errorMessage: null,
     locationContext: null,
   };
@@ -312,8 +322,6 @@ export interface UseSoundscapeSessionResult {
   deleteLocationEntry: (
     entry: Pick<SessionLocationEntry, 'id' | 'cacheKey' | 'status'>
   ) => Promise<void>;
-  handleHoverPreview: (lat: number, lng: number) => Promise<void>;
-  handleHoverEnd: () => void;
   playLocation: (cacheKey: string) => Promise<void>;
   pausePlayback: () => void;
   resumePlayback: () => void;
@@ -332,12 +340,6 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
   const cachedMarkersRef = useRef<CachedSoundscape[]>([]);
   const generationJobsRef = useRef<GenerationJob[]>([]);
   const cancelledGenerationJobIdsRef = useRef<Set<string>>(new Set());
-  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
-  const previewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previewFadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const previewRequestIdRef = useRef(0);
-  const lastPreviewCoordsRef = useRef<[number, number] | null>(null);
 
   const {
     playbackState,
@@ -384,10 +386,14 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     setCachedMarkers(playableMarkers);
   }, []);
 
+  const hasGenerationConfiguration = useCallback((): boolean => {
+    return hasApiKey() && getLlmEnhancementConfig() !== null;
+  }, []);
+
   const syncBrowserSettings = useCallback((): void => {
     setPreferences(preferencesStore.loadPreferences());
-    setHasConfiguredApiKey(hasApiKey());
-  }, []);
+    setHasConfiguredApiKey(hasGenerationConfiguration());
+  }, [hasGenerationConfiguration]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -459,61 +465,6 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     setMasterVolume,
   ]);
 
-  const disposePreviewImmediately = useCallback((): void => {
-    const audio = previewAudioRef.current;
-    if (audio) {
-      audio.pause();
-      audio.src = '';
-      previewAudioRef.current = null;
-    }
-
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
-    }
-  }, []);
-
-  const cleanupPreview = useCallback((fadeOut = false): void => {
-    if (previewTimeoutRef.current) {
-      clearTimeout(previewTimeoutRef.current);
-      previewTimeoutRef.current = null;
-    }
-
-    if (previewFadeIntervalRef.current) {
-      clearInterval(previewFadeIntervalRef.current);
-      previewFadeIntervalRef.current = null;
-    }
-
-    const audio = previewAudioRef.current;
-    if (!audio) {
-      disposePreviewImmediately();
-      return;
-    }
-
-    if (!fadeOut) {
-      disposePreviewImmediately();
-      return;
-    }
-
-    previewFadeIntervalRef.current = setInterval(() => {
-      if (!previewAudioRef.current) {
-        return;
-      }
-
-      const nextVolume = Math.max(0, previewAudioRef.current.volume - 0.12);
-      previewAudioRef.current.volume = nextVolume;
-      if (nextVolume === 0) {
-        disposePreviewImmediately();
-      }
-    }, 60);
-  }, [disposePreviewImmediately]);
-
-  useEffect(() => {
-    return (): void => {
-      cleanupPreview(false);
-    };
-  }, [cleanupPreview]);
-
   const recordSuccessfulPlayback = useCallback(async (
     cacheKey: string,
     recipe: SoundscapeRecipe
@@ -544,18 +495,18 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         return;
       }
 
-      cleanupPreview(false);
       await enableAudio();
       await play(recipe, cached.audioBlobs as AudioBlobMap);
       await recordSuccessfulPlayback(cacheKey, recipe);
     },
-    [cleanupPreview, enableAudio, play, recordSuccessfulPlayback]
+    [enableAudio, play, recordSuccessfulPlayback, refreshCaches]
   );
 
   const runGeneration = useCallback(
     async (jobId: string, lat: number, lng: number): Promise<void> => {
       try {
-        if (!hasApiKey()) {
+        const llmEnhancementConfig = getLlmEnhancementConfig();
+        if (!hasApiKey() || !llmEnhancementConfig) {
           throw new Error(messages.session.apiKeyRequiredError);
         }
 
@@ -579,6 +530,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         updateGenerationJob(jobId, (job) => ({
           ...job,
           cacheKey,
+          administrativeRegionName: location.administrativeRegionName ?? null,
           cityName: location.cityName,
           regionName: location.regionName ?? null,
           countryName: location.countryName,
@@ -604,17 +556,13 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           }
         }
 
-        let narrativeAnchors = null;
-        const llmEnhancementConfig = getLlmEnhancementConfig();
-        if (llmEnhancementConfig) {
-          try {
-            narrativeAnchors = await enrichSoundscapeNarrative(
-              location,
-              llmEnhancementConfig
-            );
-          } catch (error) {
-            console.warn('[PinDrop] LLM narrative enrichment skipped:', error);
-          }
+        const narrativeAnchors = await enrichSoundscapeNarrative(
+          location,
+          llmEnhancementConfig,
+          locale
+        );
+        if (!narrativeAnchors) {
+          throw new Error(messages.session.llmRequiredError);
         }
 
         const recipe = generateRecipe(location, { narrativeAnchors });
@@ -624,6 +572,8 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
 
         updateGenerationJob(jobId, (job) => ({
           ...job,
+          narrativeAnchors,
+          narrativeSource: 'llm',
           progress: 76,
           status: 'generating',
         }));
@@ -702,6 +652,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     },
     [
       isGenerationJobCancelled,
+      locale,
       messages,
       refreshCaches,
       removeGenerationJob,
@@ -711,7 +662,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
 
   const handleCoordinateSelect = useCallback(
     async (lat: number, lng: number): Promise<void> => {
-      if (!hasApiKey()) {
+      if (!hasGenerationConfiguration()) {
         setHasConfiguredApiKey(false);
         return;
       }
@@ -729,7 +680,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       setGenerationJobs((previous) => [job, ...previous]);
       void runGeneration(job.id, lat, lng);
     },
-    [runGeneration]
+    [hasGenerationConfiguration, runGeneration]
   );
 
   const handleMarkerSelect = useCallback(
@@ -778,58 +729,10 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     [generationJobs]
   );
 
-  const handleHoverPreview = useCallback(
-    async (lat: number, lng: number): Promise<void> => {
-      if (!hasApiKey() || hasActiveGeneration) {
-        return;
-      }
-
-      const nextCoords: [number, number] = [lat, lng];
-      if (isWithinPreviewWindow(lastPreviewCoordsRef.current, nextCoords)) {
-        return;
-      }
-
-      lastPreviewCoordsRef.current = nextCoords;
-      const requestId = ++previewRequestIdRef.current;
-
-      try {
-        const location = await resolveLocation(lat, lng);
-        if (previewRequestIdRef.current !== requestId) {
-          return;
-        }
-
-        const recipe = generateRecipe(location);
-        const previewBlob = await generateAmbientPreviewAudio(recipe.layers.ambient.prompt);
-        if (previewRequestIdRef.current !== requestId) {
-          return;
-        }
-
-        cleanupPreview(false);
-        const previewUrl = URL.createObjectURL(previewBlob);
-        const audio = new Audio(previewUrl);
-        audio.volume = 0.18;
-        previewUrlRef.current = previewUrl;
-        previewAudioRef.current = audio;
-        await audio.play();
-
-        previewTimeoutRef.current = setTimeout(() => {
-          cleanupPreview(true);
-        }, 2000);
-      } catch {
-        // Preview is intentionally best-effort only.
-      }
-    },
-    [cleanupPreview, hasActiveGeneration]
-  );
-
-  const handleHoverEnd = useCallback((): void => {
-    cleanupPreview(true);
-  }, [cleanupPreview]);
-
   const describeLocationContext = useCallback(
     (
       locationContext: LocationContext | null,
-      narrativeAnchors?: SoundscapeRecipe['narrativeAnchors']
+      narrativeAnchors?: SoundscapeRecipe['narrativeAnchors'] | null
     ): Pick<SessionLocationEntry, 'sceneDescription' | 'soundDescription'> => {
       if (!locationContext) {
         return {
@@ -838,16 +741,22 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         };
       }
 
+      const llmNarrativeAnchors =
+        narrativeAnchors?.source === 'llm' ? narrativeAnchors : undefined;
+      const llmSummary = llmNarrativeAnchors?.summary?.[locale]?.trim();
+      if (typeof llmSummary === 'string' && textMatchesLocale(llmSummary, locale) && llmSummary) {
+        return {
+          sceneDescription: llmSummary,
+          soundDescription: undefined,
+        };
+      }
+
       return {
-        sceneDescription: messages.session.sceneDescription(
-          messages.enums.timeSlots[locationContext.timeSlot],
-          messages.enums.regions[locationContext.regionType],
-          messages.enums.climates[locationContext.climate]
-        ),
-        soundDescription: getSoundSummary(locationContext, locale, narrativeAnchors),
+        sceneDescription: undefined,
+        soundDescription: undefined,
       };
     },
-    [locale, messages]
+    [locale]
   );
 
   const locationEntries = useMemo<SessionLocationEntry[]>(() => {
@@ -855,22 +764,25 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       const cityName = job.cityName ?? formatCoordinateFallback(job.coordinates);
       const countryName = job.countryName ?? '';
       const isError = job.status === 'error';
-      const narrative = describeLocationContext(job.locationContext);
+      const narrative = describeLocationContext(job.locationContext, job.narrativeAnchors);
 
-      return {
-        id: job.id,
-        cacheKey: job.cacheKey,
+        return {
+          id: job.id,
+          cacheKey: job.cacheKey,
         coordinates: job.coordinates,
+        administrativeRegionName:
+          job.administrativeRegionName ?? job.locationContext?.administrativeRegionName,
         cityName,
         regionName: job.regionName ?? job.locationContext?.regionName,
         countryName,
         timeSlot: job.timeSlot,
-        createdAt: job.createdAt,
-        progress: job.progress,
-        status: isError ? ('error' as const) : ('loading' as const),
-        statusLabel: isError
-          ? job.errorMessage ?? messages.session.generationFailed
-          : job.status === 'resolving'
+          createdAt: job.createdAt,
+          progress: job.progress,
+          status: isError ? ('error' as const) : ('loading' as const),
+          narrativeSource: job.narrativeSource,
+          statusLabel: isError
+            ? job.errorMessage ?? messages.session.generationFailed
+            : job.status === 'resolving'
             ? messages.common.loading
             : messages.session.generating,
         errorMessage: job.errorMessage,
@@ -884,15 +796,13 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       .filter((entry) => hasContinuousBedBlob(entry.audioBlobs))
       .map((entry) => {
         const recipe = coerceRecipe(entry.recipe);
-        const narrative = describeLocationContext(
-          recipe?.location ?? null,
-          recipe?.narrativeAnchors
-        );
+        const narrative = describeLocationContext(recipe?.location ?? null, recipe?.narrativeAnchors);
 
         return {
           id: entry.id,
           cacheKey: entry.id,
           coordinates: entry.coordinates,
+          administrativeRegionName: recipe?.location.administrativeRegionName,
           cityName: entry.cityName,
           regionName: recipe?.location.regionName,
           countryName: entry.countryName,
@@ -900,6 +810,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           createdAt: entry.generatedAt,
           progress: 100,
           status: 'ready',
+          narrativeSource: recipe?.narrativeAnchors?.source === 'llm' ? 'llm' : null,
           statusLabel:
             playbackState.soundscapeId === entry.id && playbackState.state === 'playing'
               ? messages.home.playbackStatus.playing
@@ -981,8 +892,6 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     handleMarkerSelect,
     handleLocationSelect,
     deleteLocationEntry,
-    handleHoverPreview,
-    handleHoverEnd,
     playLocation,
     pausePlayback: pause,
     resumePlayback: resume,

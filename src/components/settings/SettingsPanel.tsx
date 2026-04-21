@@ -2,7 +2,7 @@
 
 import {
   useEffect,
-  useEffectEvent,
+  useId,
   useRef,
   useState,
   type JSX,
@@ -14,6 +14,7 @@ import type {
   UserPreferences,
   VerificationResult,
   ApiKeyErrorCode,
+  LlmVerificationResult,
 } from './types';
 import {
   preferencesStore,
@@ -21,10 +22,14 @@ import {
   retrieveLlmApiKey,
 } from './preferencesStore';
 import { normalizeApiKey, verifyApiKey } from './apiKeyUtils';
+import { verifyLlmConfiguration } from './llmConfigUtils';
 import { ApiKeySection } from './ApiKeySection';
 import { LlmSection } from './LlmSection';
 import { PlaybackSection } from './PlaybackSection';
 import './SettingsPanel.css';
+
+const PREFERENCES_SAVE_THROTTLE_MS = 1000;
+const LLM_VERIFICATION_DEBOUNCE_MS = 800;
 
 /**
  * 轻量设置浮层。
@@ -36,6 +41,7 @@ export function SettingsPanel({
   anchorRef,
 }: SettingsPanelProps): JSX.Element | null {
   const { messages } = useI18n();
+  const titleId = useId();
   const storageUnavailable =
     typeof window !== 'undefined' && !preferencesStore.isLocalStorageAvailable();
 
@@ -44,6 +50,9 @@ export function SettingsPanel({
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
   const [apiKeyError, setApiKeyError] = useState<ApiKeyErrorCode | null>(null);
+  const [isLlmVerifying, setIsLlmVerifying] = useState(false);
+  const [llmVerificationResult, setLlmVerificationResult] =
+    useState<LlmVerificationResult | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences>(() => {
     if (typeof window === 'undefined') {
       return preferencesStore.getDefaultPreferences();
@@ -60,6 +69,10 @@ export function SettingsPanel({
   const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaveTimeRef = useRef<number>(0);
   const pendingPreferencesRef = useRef<UserPreferences | null>(null);
+  const preferencesRef = useRef<UserPreferences>(preferences);
+  const llmVerificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const llmVerificationRequestRef = useRef(0);
+  const lastVerifiedLlmSignatureRef = useRef<string | null>(null);
 
   function announce(message: string): void {
     setAnnouncement('');
@@ -68,7 +81,19 @@ export function SettingsPanel({
     }, 50);
   }
 
-  function savePreferences(updated: UserPreferences): void {
+  useEffect(() => {
+    preferencesRef.current = preferences;
+  }, [preferences]);
+
+  function savePreferences(
+    update: UserPreferences | ((current: UserPreferences) => UserPreferences),
+  ): void {
+    const updated =
+      typeof update === 'function'
+        ? (update as (current: UserPreferences) => UserPreferences)(preferencesRef.current)
+        : update;
+
+    preferencesRef.current = updated;
     setPreferences(updated);
     if (storageUnavailable) {
       return;
@@ -76,9 +101,7 @@ export function SettingsPanel({
 
     const now = Date.now();
     const elapsed = now - lastSaveTimeRef.current;
-    const THROTTLE_MS = 1000;
-
-    if (elapsed >= THROTTLE_MS) {
+    if (elapsed >= PREFERENCES_SAVE_THROTTLE_MS) {
       preferencesStore.savePreferences(updated);
       lastSaveTimeRef.current = now;
       pendingPreferencesRef.current = null;
@@ -100,7 +123,7 @@ export function SettingsPanel({
           pendingPreferencesRef.current = null;
         }
         throttleTimerRef.current = null;
-      }, THROTTLE_MS - elapsed);
+      }, PREFERENCES_SAVE_THROTTLE_MS - elapsed);
     }
   }
 
@@ -132,43 +155,32 @@ export function SettingsPanel({
   }
 
   function handleDynamicEventsChange(enabled: boolean): void {
-    const updated = { ...preferences, dynamicEvents: enabled };
-    savePreferences(updated);
+    savePreferences((current) => ({ ...current, dynamicEvents: enabled }));
   }
 
   function handleLlmBaseUrlChange(baseUrl: string): void {
-    const updated = {
-      ...preferences,
+    savePreferences((current) => ({
+      ...current,
       llmEnhancement: {
-        ...preferences.llmEnhancement,
+        ...current.llmEnhancement,
         baseUrl,
       },
-    };
-    savePreferences(updated);
+    }));
   }
 
   function handleLlmModelChange(model: string): void {
-    const updated = {
-      ...preferences,
+    savePreferences((current) => ({
+      ...current,
       llmEnhancement: {
-        ...preferences.llmEnhancement,
+        ...current.llmEnhancement,
         model,
       },
-    };
-    savePreferences(updated);
+    }));
   }
 
   function handleLlmApiKeyChange(nextApiKey: string): void {
     setLlmApiKey(nextApiKey);
   }
-
-  const announceFromEffect = useEffectEvent((message: string) => {
-    announce(message);
-  });
-
-  const closeFromEffect = useEffectEvent(() => {
-    onClose();
-  });
 
   useEffect(() => {
     return (): void => {
@@ -186,8 +198,80 @@ export function SettingsPanel({
         clearTimeout(successTimerRef.current);
         successTimerRef.current = null;
       }
+
+      if (llmVerificationTimerRef.current) {
+        clearTimeout(llmVerificationTimerRef.current);
+        llmVerificationTimerRef.current = null;
+      }
     };
   }, [storageUnavailable]);
+
+  useEffect(() => {
+    if (llmVerificationTimerRef.current) {
+      clearTimeout(llmVerificationTimerRef.current);
+      llmVerificationTimerRef.current = null;
+    }
+
+    if (!isOpen) {
+      llmVerificationRequestRef.current += 1;
+      return;
+    }
+
+    const normalizedBaseUrl = preferences.llmEnhancement.baseUrl.trim();
+    const normalizedModel = preferences.llmEnhancement.model.trim();
+    const normalizedLlmApiKey = normalizeApiKey(llmApiKey);
+
+    if (!normalizedBaseUrl || !normalizedModel || !normalizedLlmApiKey) {
+      llmVerificationRequestRef.current += 1;
+      return;
+    }
+
+    const signature = JSON.stringify({
+      baseUrl: normalizedBaseUrl,
+      model: normalizedModel,
+      apiKey: normalizedLlmApiKey,
+    });
+
+    if (signature === lastVerifiedLlmSignatureRef.current && llmVerificationResult) {
+      return;
+    }
+
+    setIsLlmVerifying(true);
+    setLlmVerificationResult(null);
+    const requestId = llmVerificationRequestRef.current + 1;
+    llmVerificationRequestRef.current = requestId;
+
+    llmVerificationTimerRef.current = setTimeout(() => {
+      void (async () => {
+        const result = await verifyLlmConfiguration({
+          baseUrl: normalizedBaseUrl,
+          model: normalizedModel,
+          apiKey: normalizedLlmApiKey,
+        });
+
+        if (llmVerificationRequestRef.current !== requestId) {
+          return;
+        }
+
+        lastVerifiedLlmSignatureRef.current = signature;
+        setIsLlmVerifying(false);
+        setLlmVerificationResult(result);
+      })();
+    }, LLM_VERIFICATION_DEBOUNCE_MS);
+
+    return (): void => {
+      if (llmVerificationTimerRef.current) {
+        clearTimeout(llmVerificationTimerRef.current);
+        llmVerificationTimerRef.current = null;
+      }
+    };
+  }, [
+    isOpen,
+    llmApiKey,
+    llmVerificationResult,
+    preferences.llmEnhancement.baseUrl,
+    preferences.llmEnhancement.model,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -212,7 +296,7 @@ export function SettingsPanel({
     }, 0);
 
     const announcementTimer = window.setTimeout(() => {
-      announceFromEffect(messages.settings.openedAnnouncement);
+      announce(messages.settings.openedAnnouncement);
     }, 0);
 
     return (): void => {
@@ -230,7 +314,7 @@ export function SettingsPanel({
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        closeFromEffect();
+        onClose();
       }
     };
 
@@ -238,7 +322,7 @@ export function SettingsPanel({
     return (): void => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (wasOpenRef.current && !isOpen) {
@@ -265,30 +349,35 @@ export function SettingsPanel({
         className="settings-popover"
         role="dialog"
         aria-modal="false"
-        aria-label={messages.settings.panelTitle}
+        aria-labelledby={titleId}
       >
-        <button
-          type="button"
-          className="settings-popover__close-button"
-          onClick={onClose}
-          aria-label={messages.settings.closeAria}
-        >
-          <svg
-            className="settings-popover__close-icon"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            focusable="false"
+        <div className="settings-popover__header">
+          <h2 id={titleId} className="settings-popover__title">
+            {messages.settings.panelTitle}
+          </h2>
+          <button
+            type="button"
+            className="settings-popover__close-button"
+            onClick={onClose}
+            aria-label={messages.settings.closeAria}
           >
-            <path
-              d="M6 6l12 12M18 6L6 18"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.8"
-            />
-          </svg>
-        </button>
+            <svg
+              className="settings-popover__close-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.8"
+              />
+            </svg>
+          </button>
+        </div>
 
         {storageUnavailable ? (
           <div className="settings-popover__warning" role="alert">
@@ -317,6 +406,8 @@ export function SettingsPanel({
             onBaseUrlChange={handleLlmBaseUrlChange}
             onModelChange={handleLlmModelChange}
             onApiKeyChange={handleLlmApiKeyChange}
+            isVerifying={isLlmVerifying}
+            verificationResult={llmVerificationResult}
             compact
           />
 

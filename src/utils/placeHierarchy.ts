@@ -21,6 +21,7 @@ export interface PlaceAddress {
 
 export interface PlaceHierarchy {
   cityName: string;
+  administrativeRegionName?: string;
   regionName?: string;
   countryName: string;
 }
@@ -49,7 +50,9 @@ function isStreetLevelName(value: string | undefined): boolean {
     /(?:street|st\.?|road|rd\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|court|ct\.?|boulevard|blvd\.?|way)\b/i.test(
       normalized
     ) ||
-    /(街道|大道|大街|街|路|巷|胡同|弄|社区|小区)$/.test(normalized)
+    /(?:\u8857\u9053|\u5927\u9053|\u5927\u8857|\u8def|\u8857|\u793e\u533a|\u5c0f\u533a)$/.test(
+      normalized
+    )
   );
 }
 
@@ -93,32 +96,38 @@ export function extractPlaceHierarchy(
   const settlementName = isStreetLevelName(rawSettlementName)
     ? undefined
     : rawSettlementName;
-  const adminLevelName = firstDefined(address.state, address.province);
-  const countyName = normalizeName(address.county);
-  const districtLevelName = firstDefined(
+  const administrativeRegionName = firstDefined(address.state, address.province);
+  const countyName = isStreetLevelName(address.county)
+    ? undefined
+    : normalizeName(address.county);
+  const rawDistrictLevelName = firstDefined(
     address.city_district,
     address.district,
     address.borough
   );
+  const districtLevelName = isStreetLevelName(rawDistrictLevelName)
+    ? undefined
+    : rawDistrictLevelName;
 
   const cityName =
     cityLevelName ??
     settlementName ??
-    (adminLevelName && countyName ? adminLevelName : undefined) ??
-    adminLevelName ??
+    (administrativeRegionName && countyName ? administrativeRegionName : undefined) ??
+    administrativeRegionName ??
     countyName ??
     unknownLocationLabel;
 
   const regionName = firstDistinct(
-    [cityName],
+    [cityName, administrativeRegionName ?? ''],
     districtLevelName,
     cityLevelName ? countyName : undefined,
     cityName === settlementName ? countyName : undefined,
-    cityName === adminLevelName ? countyName : undefined
+    cityName === administrativeRegionName ? countyName : undefined
   );
 
   return {
     cityName,
+    administrativeRegionName,
     regionName,
     countryName: firstDefined(address.country) ?? unknownCountryLabel,
   };

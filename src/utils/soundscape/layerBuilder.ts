@@ -100,9 +100,16 @@ export function buildAmbientLayer(
   const basePrompt = template.ambientPrompt.replace('{weather}', weatherDesc);
   const placeDescriptor = getPromptPlaceDescriptor(context);
   const specificityInstruction = getPromptSpecificityInstruction(context, narrativeAnchors);
-  const cueDescriptions = getSelectedSoundCues(context, narrativeAnchors)
+  const featuredCue = getSignatureCue(context, narrativeAnchors);
+  const supportingCueDescriptions = getSelectedSoundCues(context, narrativeAnchors)
+    .filter((cue) => cue.prompt !== featuredCue.prompt)
     .map((cue) => cue.prompt)
+    .slice(0, 2)
     .join(', ');
+  const ambientBedCueDescriptions = [
+    featuredCue.prompt,
+    ...(supportingCueDescriptions ? [supportingCueDescriptions] : []),
+  ].join(', ');
   const environmentDetails = [terrainSound];
 
   if (context.nearWater !== null) {
@@ -111,11 +118,12 @@ export function buildAmbientLayer(
 
   const prompt = [
     `Authentic documentary field recording of ${placeDescriptor} during the ${context.timeSlot}.`,
-    `Build a continuous ambient bed from everyday local life: ${cueDescriptions}.`,
+    `Center the scene on one recognisable local routine: ${featuredCue.prompt}.`,
+    `Build a continuous ambient bed from everyday local life around it: ${ambientBedCueDescriptions}.`,
     `Regional foundation: ${basePrompt}.`,
     `Natural environment: ${environmentDetails.join(', ')}.`,
     specificityInstruction,
-    'Keep perspective realistic and layered. Avoid cinematic stingers, random novelty effects, exaggerated animals that do not belong here, and synthetic textures.',
+    'Keep perspective realistic and layered. No detached narrator, scene-setting monologue, or spoken introduction. Avoid cinematic stingers, random novelty effects, exaggerated animals that do not belong here, and synthetic textures.',
   ].join(' ');
 
   const volume = clamp(0.7 * interpolation.appliedParams.activity, 0, 1);
@@ -142,9 +150,9 @@ export function buildSignatureLayer(
   const detailPrompt =
     signatureCue.prompt || fallbackSignature || 'one brief local daily-life sound detail';
   const prompt = [
-    `A brief recognisable everyday sound from ${placeDescriptor}: ${detailPrompt}.`,
+    `Capture one brief recognisable everyday moment from ${placeDescriptor}: ${detailPrompt}.`,
     specificityInstruction,
-    'It should feel locally grounded, naturally recorded, and never theatrical or comedic.',
+    'Render only the diegetic moment itself with no narrator, spoken introduction, or theatrical sting. It should feel locally grounded, naturally recorded, and never comedic.',
   ].join(' ');
 
   const intervalSeconds = clamp(90 - (60 * activity), 30, 90);
@@ -171,30 +179,12 @@ function getEmotionTagsForTime(timeSlot: TimeSlot): string[] {
 }
 
 export function buildDialogueLayer(
-  template: SoundscapeTemplate,
+  _template: SoundscapeTemplate,
   interpolation: TimeInterpolation,
   context: LocationContext
 ): DialogueLayer {
   const { humanVoice } = interpolation.appliedParams;
-
-  if (template.dialogueTopics.length === 0) {
-    return {
-      type: 'tts',
-      model: 'eleven_v3',
-      voiceId: 'default_voice',
-      language: context.languageVariant,
-      text: '',
-      emotionTags: getEmotionTagsForTime(interpolation.sourceSlot),
-      volume: 0,
-      pan: -0.3,
-      repeatIntervalSeconds: clamp(120 - (90 * humanVoice), 30, 120),
-    };
-  }
-
-  const topic = template.dialogueTopics[0];
-  const text = `A local conversation about ${topic}`;
   const repeatIntervalSeconds = clamp(120 - (90 * humanVoice), 30, 120);
-  const volume = clamp(0.7 * humanVoice, 0, 1);
   const emotionTags = getEmotionTagsForTime(interpolation.sourceSlot);
 
   return {
@@ -202,16 +192,18 @@ export function buildDialogueLayer(
     model: 'eleven_v3',
     voiceId: 'default_voice',
     language: context.languageVariant,
-    text,
+    // Placeholder conversation text gets spoken literally by TTS.
+    // Keep this layer silent until we generate place-authentic speech instead.
+    text: '',
     emotionTags,
-    volume,
+    volume: 0,
     pan: -0.3,
     repeatIntervalSeconds,
   };
 }
 
 export function buildSecondaryDialogueLayer(
-  template: SoundscapeTemplate,
+  _template: SoundscapeTemplate,
   interpolation: TimeInterpolation,
   context: LocationContext,
   primaryDialogue: DialogueLayer
@@ -220,25 +212,6 @@ export function buildSecondaryDialogueLayer(
     context.secondaryLanguages.length > 0
       ? context.secondaryLanguages[0]
       : context.languageVariant;
-
-  if (template.dialogueTopics.length === 0) {
-    return {
-      type: 'tts',
-      model: 'eleven_flash_v2_5',
-      voiceId: 'default_secondary_voice',
-      language,
-      text: '',
-      emotionTags: primaryDialogue.emotionTags,
-      volume: 0,
-      pan: clamp(-primaryDialogue.pan, -1, 1),
-      repeatIntervalSeconds: clamp(primaryDialogue.repeatIntervalSeconds + 15, 30, 120),
-    };
-  }
-
-  const topicIndex = template.dialogueTopics.length > 1 ? 1 : 0;
-  const topic = template.dialogueTopics[topicIndex];
-  const text = `Background conversation about ${topic}`;
-  const volume = clamp(primaryDialogue.volume * 0.6, 0, 1);
   const pan = clamp(-primaryDialogue.pan, -1, 1);
   const repeatIntervalSeconds = clamp(primaryDialogue.repeatIntervalSeconds + 15, 30, 120);
 
@@ -247,9 +220,9 @@ export function buildSecondaryDialogueLayer(
     model: 'eleven_flash_v2_5',
     voiceId: 'default_secondary_voice',
     language,
-    text,
+    text: '',
     emotionTags: primaryDialogue.emotionTags,
-    volume,
+    volume: 0,
     pan,
     repeatIntervalSeconds,
   };
@@ -264,10 +237,14 @@ export function buildAtmosphereLayer(
   const culturalTone = getCulturalAtmosphereTone(context, narrativeAnchors);
   const placeDescriptor = getPromptPlaceDescriptor(context);
   const timeMood = getTimeMoodDescription(interpolation.sourceSlot);
-  const prompt = `Subtle ${template.atmosphereStyle.replace(
-    '{culture}',
-    culturalTone
-  )} for ${placeDescriptor}, ${timeMood}, organic and restrained, almost hidden under the ambience, with no dominant melody.`;
+  const prompt = [
+    `Subtle place-rooted music bed for ${placeDescriptor}.`,
+    `Texture: ${template.atmosphereStyle.replace('{culture}', culturalTone)}.`,
+    `Mood: ${timeMood}.`,
+    'Organic and restrained, almost hidden under the ambience, with no dominant melody and no dramatic intro swell.',
+    'Natural embedded human voices are allowed when they belong to the place, such as market calls, street sellers, distant crowd responses, or brief non-lyrical vocal textures, but never as a clean lead vocal.',
+    'Do not open with a spoken monologue, narration, counting cue, announcer voice, or trailer-style spoken intro before the music bed settles in.',
+  ].join(' ');
   const volume = clamp(0.5 * interpolation.appliedParams.music, 0, 1);
 
   return {
