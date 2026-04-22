@@ -46,6 +46,25 @@ export type ClimateType =
 /** 水体类型 — 描述位置附近的水体特征 */
 export type WaterType = 'sea' | 'river' | 'lake' | 'canal';
 
+/** 局部场景类型 — 描述点击点附近最可能的即时声景 */
+export type SceneType =
+  | 'urban_main_road'
+  | 'commercial_district'
+  | 'residential_block'
+  | 'park'
+  | 'campus'
+  | 'transit_hub'
+  | 'coastal_waterfront'
+  | 'riverfront'
+  | 'harbor'
+  | 'historic_quarter'
+  | 'industrial_edge'
+  | 'rural_fields'
+  | 'forest_path'
+  | 'mountain_path'
+  | 'open_water'
+  | 'polar_outpost';
+
 // === 主接口 ===
 
 /** 位置语境 — Geocoding Engine 的核心输出数据结构，包含全部 17 个推断字段 */
@@ -99,6 +118,14 @@ export interface LocationContext {
   // 经济水平
   /** 经济水平，0-1 */
   economicLevel: number;
+
+  // 局部场景推断
+  /** 点击点附近最可能的即时场景，可用于生成相关联的声音组 */
+  sceneType?: SceneType;
+  /** 局部场景推断置信度，0-1 */
+  sceneConfidence?: number;
+  /** 推断该场景时命中的局部语义标签 */
+  sceneTags?: string[];
 }
 
 // === 辅助类型 ===
@@ -165,6 +192,26 @@ const VALID_WATER_TYPES: readonly WaterType[] = [
   'river',
   'lake',
   'canal',
+] as const;
+
+/** 所有有效的 SceneType 值 */
+const VALID_SCENE_TYPES: readonly SceneType[] = [
+  'urban_main_road',
+  'commercial_district',
+  'residential_block',
+  'park',
+  'campus',
+  'transit_hub',
+  'coastal_waterfront',
+  'riverfront',
+  'harbor',
+  'historic_quarter',
+  'industrial_edge',
+  'rural_fields',
+  'forest_path',
+  'mountain_path',
+  'open_water',
+  'polar_outpost',
 ] as const;
 
 /** 所有有效的 TimeSlot 值 */
@@ -302,6 +349,30 @@ export function parseLocationContext(json: string): LocationContext | null {
       typeof obj.economicLevel !== 'number' ||
       obj.economicLevel < 0 ||
       obj.economicLevel > 1
+    ) {
+      return null;
+    }
+
+    // 验证可选的局部场景字段
+    if (
+      obj.sceneType !== undefined &&
+      (typeof obj.sceneType !== 'string' ||
+        !VALID_SCENE_TYPES.includes(obj.sceneType as SceneType))
+    ) {
+      return null;
+    }
+    if (
+      obj.sceneConfidence !== undefined &&
+      (typeof obj.sceneConfidence !== 'number' ||
+        obj.sceneConfidence < 0 ||
+        obj.sceneConfidence > 1)
+    ) {
+      return null;
+    }
+    if (
+      obj.sceneTags !== undefined &&
+      (!Array.isArray(obj.sceneTags) ||
+        !obj.sceneTags.every((tag: unknown) => typeof tag === 'string'))
     ) {
       return null;
     }

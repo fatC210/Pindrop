@@ -429,7 +429,7 @@ describe('generateRecipe', () => {
   it('stores the current prompt version on generated recipes for cache compatibility', () => {
     const recipe = generateRecipe(PARIS_CONTEXT);
 
-    expect(recipe.promptVersion).toBe(2);
+    expect(recipe.promptVersion).toBe(3);
   });
 
   // --- 无对话区域静默规则 ---

@@ -23,6 +23,9 @@ export { inferCulture } from './cultureInferrer';
 
 export { inferEconomicLevel } from './economyInferrer';
 
+export { inferLocalScene } from './localSceneInferrer';
+export type { SceneInference } from './localSceneInferrer';
+
 // CoordinateInferrer
 export {
   inferFromCoordinates,

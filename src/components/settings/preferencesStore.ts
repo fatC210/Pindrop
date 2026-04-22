@@ -119,6 +119,36 @@ function validateLlmEnhancementSettings(value: unknown): LlmEnhancementSettings 
   };
 }
 
+function areLayerVolumesEqual(
+  left: UserPreferences['layerVolumes'],
+  right: UserPreferences['layerVolumes']
+): boolean {
+  return (
+    left.ambient === right.ambient &&
+    left.signature === right.signature &&
+    left.dialogue === right.dialogue &&
+    left.secondaryDialogue === right.secondaryDialogue &&
+    left.atmosphere === right.atmosphere
+  );
+}
+
+export function arePreferencesEqual(
+  left: UserPreferences,
+  right: UserPreferences
+): boolean {
+  return (
+    left.interfaceLanguage === right.interfaceLanguage &&
+    left.mapStyle === right.mapStyle &&
+    left.autoPlay === right.autoPlay &&
+    left.fadeInDuration === right.fadeInDuration &&
+    left.dynamicEvents === right.dynamicEvents &&
+    left.masterVolume === right.masterVolume &&
+    areLayerVolumesEqual(left.layerVolumes, right.layerVolumes) &&
+    left.llmEnhancement.baseUrl === right.llmEnhancement.baseUrl &&
+    left.llmEnhancement.model === right.llmEnhancement.model
+  );
+}
+
 // ---------------------------------------------------------------------------
 // validatePreferences
 // ---------------------------------------------------------------------------
@@ -242,7 +272,13 @@ export class PreferencesStore {
 
     try {
       const validated = validatePreferences(preferences);
-      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(validated));
+      const serialized = JSON.stringify(validated);
+      const existing = localStorage.getItem(PREFERENCES_KEY);
+      if (existing === serialized) {
+        return;
+      }
+
+      localStorage.setItem(PREFERENCES_KEY, serialized);
       dispatchPreferencesUpdated();
     } catch (error) {
       console.error('[PinDrop Error] Failed to save preferences:', error);

@@ -342,6 +342,25 @@ describe('PreferencesStore', () => {
         expect.any(Error),
       );
     });
+
+    test('does not dispatch an update event when validated preferences are unchanged', () => {
+      const prefs = makeValidPreferences({ dynamicEvents: false, masterVolume: 0.5 });
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      store.savePreferences(prefs);
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.any(CustomEvent));
+
+      dispatchSpy.mockClear();
+      store.savePreferences({
+        ...prefs,
+        mapStyle: 'dark',
+      });
+
+      expect(localStorage.getItem(PREFERENCES_KEY)).toBe(
+        JSON.stringify(validatePreferences(prefs))
+      );
+      expect(dispatchSpy).not.toHaveBeenCalled();
+    });
   });
 
   // getDefaultPreferences

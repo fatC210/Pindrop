@@ -51,6 +51,8 @@ vi.mock('@/hooks/useAudioPlayer', () => ({
 
 vi.mock('@/components/settings/preferencesStore', () => ({
   PREFERENCES_UPDATED_EVENT: 'pindrop:preferences-updated',
+  arePreferencesEqual: (left: unknown, right: unknown) =>
+    JSON.stringify(left) === JSON.stringify(right),
   getLlmEnhancementConfig: mockGetLlmEnhancementConfig,
   preferencesStore: {
     getDefaultPreferences: () => ({
@@ -491,6 +493,27 @@ describe('useSoundscapeSession deletion flow', () => {
     mockUseAudioPlayer.mockReturnValue(createAudioPlayerState());
   });
 
+  test('ignores preference update events when the stored preferences did not change', async () => {
+    const audioPlayerState = createAudioPlayerState();
+    mockUseAudioPlayer.mockReturnValue(audioPlayerState);
+
+    renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(audioPlayerState.setMasterVolume).toHaveBeenCalledTimes(1);
+      expect(audioPlayerState.setDynamicEventsEnabled).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('pindrop:preferences-updated'));
+    });
+
+    await waitFor(() => {
+      expect(audioPlayerState.setMasterVolume).toHaveBeenCalledTimes(1);
+      expect(audioPlayerState.setDynamicEventsEnabled).toHaveBeenCalledTimes(1);
+    });
+  });
+
   test('deleting a ready entry removes it from the list and map pins', async () => {
     const stop = vi.fn();
     const cachedEntry = createCachedSoundscape();
@@ -811,7 +834,7 @@ describe('useSoundscapeSession deletion flow', () => {
     });
 
     expect(result.current.locationEntries[0]?.sceneDescription).toBe(
-      'riverside accordion phrases, opening bookstalls, paperbacks on a folding stand, low quay footsteps'
+      'riverside accordion phrases / opening bookstalls / paperbacks on a folding stand'
     );
     expect(result.current.locationEntries[0]?.sceneDescription).not.toBe('soft accordion');
   });
@@ -872,7 +895,7 @@ describe('useSoundscapeSession deletion flow', () => {
     await waitFor(() => {
       expect(result.current.locationEntries).toHaveLength(1);
       expect(result.current.locationEntries[0]?.status).toBe('loading');
-      expect(result.current.locationEntries[0]?.sceneDescription).toContain('A market stall');
+      expect(result.current.locationEntries[0]?.sceneDescription).toContain('a market stall');
     });
 
     await act(async () => {
@@ -896,8 +919,63 @@ describe('useSoundscapeSession deletion flow', () => {
     });
 
     expect(result.current.locationEntries[0]?.sceneDescription).toBe(
-      '\u6cb3\u7554\u624b\u98ce\u7434\u7247\u6bb5\u3001\u521d\u5f00\u7684\u4e66\u644a\u3001\u7eb8\u8d28\u4e66\u672c\u653e\u4e0a\u6298\u53e0\u4e66\u67b6\u58f0\u3001\u7801\u5934\u8fb9\u7684\u811a\u6b65\u58f0'
+      '\u6cb3\u7554\u624b\u98ce\u7434\u7247\u6bb5 / \u521d\u5f00\u7684\u4e66\u644a / \u7eb8\u8d28\u4e66\u672c\u653e\u4e0a\u6298\u53e0\u4e66\u67b6\u58f0'
     );
+  });
+
+  test('strips mixed-language cue labels down to Chinese when the interface locale is Chinese', async () => {
+    mockLocaleState.value = 'zh-CN';
+    mockGetCachedMarkers.mockResolvedValue([
+      {
+        ...createCachedSoundscape(),
+        recipe: {
+          ...createCachedSoundscape().recipe,
+          narrativeAnchors: {
+            source: 'llm',
+            confidence: 0.91,
+            summary: {
+              en: '',
+              'zh-CN': '',
+            },
+            cues: [
+              {
+                prompt: 'distant traffic hum',
+                label: {
+                  en: 'distant traffic hum',
+                  'zh-CN': 'Anchor Distant traffic hum (远处车流的低鸣)',
+                },
+              },
+              {
+                prompt: 'crickets at night',
+                label: {
+                  en: 'night insects',
+                  'zh-CN':
+                    'Anchor Crickets/night insects (秋虫在草丛中鸣叫 / 草丛里的虫鸣)',
+                },
+              },
+              {
+                prompt: 'stream water nearby',
+                label: {
+                  en: 'stream water nearby',
+                  'zh-CN': 'Anchor Stream water nearby (近处溪水声)',
+                },
+              },
+            ],
+          },
+        },
+      },
+    ]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toBe(
+      '远处车流的低鸣 / 秋虫在草丛中鸣叫 / 近处溪水声'
+    );
+    expect(result.current.locationEntries[0]?.sceneDescription).not.toMatch(/[A-Za-z]/);
   });
 
   test('falls back to the other cached narrative language when the active locale version is missing', async () => {
@@ -950,7 +1028,7 @@ describe('useSoundscapeSession deletion flow', () => {
     });
 
     expect(result.current.locationEntries[0]?.sceneDescription).toBe(
-      'riverbank old bookseller opening the stall, accordion phrases over the quay, paperbacks sliding onto the stand'
+      'riverbank old bookseller opening the stall / accordion phrases over the quay / paperbacks sliding onto the stand'
     );
   });
 
@@ -1014,7 +1092,7 @@ describe('useSoundscapeSession deletion flow', () => {
     await waitFor(() => {
       expect(result.current.locationEntries[0]?.displayLocale).toBe('zh-CN');
       expect(result.current.locationEntries[0]?.sceneDescription).toBe(
-        'stream water and a scooter, a bicycle bell, shop shutters settling'
+        'stream water and a scooter / a bicycle bell / shop shutters settling'
       );
       expect(result.current.locationEntries[0]?.administrativeRegionName).toBe('Hunan');
     });

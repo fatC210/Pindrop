@@ -4,6 +4,11 @@ import type {
   NarrativeAnchorCue,
   SoundscapeNarrativeAnchors,
 } from '@/types/soundscapeRecipe';
+import {
+  getSceneLocalityCues,
+  getSceneLocalitySignatureCue,
+  getSceneSettingLabel,
+} from './sceneLocality';
 
 export type SoundCue = NarrativeAnchorCue;
 
@@ -591,122 +596,50 @@ function getSummaryLocationName(context: LocationContext): string {
 }
 
 function getSummarySettingLabel(context: LocationContext, locale: AppLocale): string {
-  const waterPrefix =
-    locale === 'zh-CN'
-      ? (
-          {
-            sea: '海边',
-            river: '临河',
-            lake: '湖边',
-            canal: '沿运河',
-          } as const
-        )[context.nearWater ?? 'river']
-      : (
-          {
-            sea: 'coastal',
-            river: 'riverside',
-            lake: 'lakeside',
-            canal: 'canal-side',
-          } as const
-        )[context.nearWater ?? 'river'];
-
-  const baseLabel =
-    locale === 'zh-CN'
-      ? (
-          {
-            city_center: '城市中心街头',
-            city_suburb: '城市街区',
-            town: '小镇街口',
-            village: '村落周边',
-            rural: '乡野地带',
-            wilderness: '自然荒野',
-            ocean: '海面环境',
-            polar: '极地户外',
-          } as const
-        )[context.regionType]
-      : (
-          {
-            city_center: 'dense city center',
-            city_suburb: 'city district',
-            town: 'small-town center',
-            village: 'lived-in village edge',
-            rural: 'open countryside',
-            wilderness: 'remote wilderness',
-            ocean: 'open water',
-            polar: 'polar outdoors',
-          } as const
-        )[context.regionType];
-
-  if (context.regionType === 'ocean' || context.regionType === 'polar' || context.nearWater === null) {
-    return baseLabel;
-  }
-
-  return locale === 'zh-CN' ? `${waterPrefix}${baseLabel}` : `${waterPrefix} ${baseLabel}`;
+  return getSceneSettingLabel(context, locale);
 }
 
-function getRuleBasedNarrativeAnchors(context: LocationContext): SoundscapeNarrativeAnchors | null {
+export function buildRuleBasedNarrativeAnchors(
+  context: LocationContext
+): SoundscapeNarrativeAnchors | null {
+  const placeAnchor = getPlaceSoundAnchor(context);
+  const placeCues = placeAnchor?.cues ?? [];
+  const sceneCues = getSceneLocalityCues(context);
   const regionCues = REGION_CUES[context.regionType] ?? REGION_CUES.rural;
   const cultureCues = isEverydayCultureRegion(context.regionType)
     ? (CULTURE_CUES[context.cultureRegion] ?? CULTURE_CUES.unknown)
     : [];
   const waterCue = context.nearWater ? WATER_CUES[context.nearWater] : null;
-  const cultureSignature = CULTURE_SIGNATURES[context.cultureRegion] ?? CULTURE_SIGNATURES.unknown;
   const locationName = getSummaryLocationName(context);
+  const settingLabel = getSceneSettingLabel(context, 'en');
+  const cues = dedupeCues([
+    ...placeCues,
+    ...sceneCues,
+    ...(waterCue ? [waterCue] : []),
+    ...cultureCues,
+    ...regionCues,
+  ]).slice(0, 3);
 
-  let featuredCue: SoundCue | null = null;
-  if (
-    waterCue &&
-    (context.regionType === 'ocean' ||
-      context.terrain === 'river' ||
-      context.terrain === 'lake' ||
-      context.terrain === 'coast')
-  ) {
-    featuredCue = waterCue;
-  } else if (context.regionType === 'town' || context.regionType === 'village') {
-    featuredCue = selectCueBySeed(
-      dedupeDefinedCues(regionCues[0], regionCues[1], cultureCues[0], waterCue),
-      getContextSeed(context, 'small-place')
-    );
-  } else if (context.regionType === 'city_suburb') {
-    featuredCue = selectCueBySeed(
-      dedupeDefinedCues(regionCues[0], cultureCues[0], regionCues[1], waterCue),
-      getContextSeed(context, 'suburb')
-    );
-  } else if (context.regionType === 'city_center') {
-    featuredCue = selectCueBySeed(
-      dedupeDefinedCues(cultureSignature, cultureCues[0], regionCues[0], cultureCues[1], waterCue),
-      getContextSeed(context, 'city-center')
-    );
-  } else {
-    featuredCue = selectCueBySeed(
-      dedupeDefinedCues(waterCue, regionCues[0], cultureSignature, cultureCues[0]),
-      getContextSeed(context, 'fallback')
-    );
-  }
-
-  if (!featuredCue) {
+  if (cues.length === 0) {
     return null;
   }
 
-  const cues = dedupeCues([
-    featuredCue,
-    ...regionCues,
-    ...cultureCues,
-    ...(waterCue ? [waterCue] : []),
-  ]).slice(0, 3);
   const signature =
-    selectCueBySeed(
-      dedupeDefinedCues(featuredCue, cultureSignature, cues[1], waterCue),
-      getContextSeed(context, 'signature')
-    ) ?? featuredCue;
+    placeAnchor?.signature ??
+    getSceneLocalitySignatureCue(context) ??
+    cues[1] ??
+    cues[0];
+  const featuredCue = signature ?? cues[0];
 
   return {
     source: 'rules',
-    confidence: 0.58,
+    confidence: Math.max(context.sceneConfidence ?? 0.58, 0.58),
     cues,
-    signature,
-    atmosphereTone: CULTURAL_ATMOSPHERE_TONES[context.cultureRegion] ?? 'local acoustic colors',
-    specificityInstruction: `Center the scene on one precise routine residents of ${locationName} would recognize immediately, especially ${featuredCue.label.en}, and avoid falling back to generic regional stock sounds.`,
+    signature: signature ?? undefined,
+    atmosphereTone:
+      placeAnchor?.atmosphereTone ??
+      (CULTURAL_ATMOSPHERE_TONES[context.cultureRegion] ?? 'local acoustic colors'),
+    specificityInstruction: `Center the scene on one precise routine residents of ${locationName} would recognize immediately within this ${settingLabel}, especially ${featuredCue.label.en}, and avoid falling back to generic regional stock sounds.`,
   };
 }
 
@@ -756,9 +689,10 @@ export function getSelectedSoundCues(
   narrativeAnchors?: SoundscapeNarrativeAnchors | null
 ): SoundCue[] {
   const effectiveNarrativeAnchors =
-    narrativeAnchors ?? getRuleBasedNarrativeAnchors(context);
+    narrativeAnchors ?? buildRuleBasedNarrativeAnchors(context);
   const providedCues = getProvidedNarrativeCues(effectiveNarrativeAnchors);
   const placeCues = getPlaceSoundAnchor(context)?.cues ?? [];
+  const sceneCues = getSceneLocalityCues(context);
   const regionCues = REGION_CUES[context.regionType] ?? REGION_CUES.rural;
   const cultureCues = isEverydayCultureRegion(context.regionType)
     ? (CULTURE_CUES[context.cultureRegion] ?? CULTURE_CUES.unknown)
@@ -774,6 +708,7 @@ export function getSelectedSoundCues(
     return dedupeCues([
       ...prioritizedNarrativeCues,
       ...placeCues,
+      ...sceneCues,
       ...secondaryNarrativeCues,
       ...waterCue,
       ...regionCues,
@@ -782,8 +717,8 @@ export function getSelectedSoundCues(
   }
 
   const ordered = isEverydayCultureRegion(context.regionType)
-    ? interleaveEverydayCues(regionCues, cultureCues, waterCue)
-    : [...waterCue, ...regionCues, ...cultureCues];
+    ? [...sceneCues, ...interleaveEverydayCues(regionCues, cultureCues, waterCue)]
+    : [...sceneCues, ...waterCue, ...regionCues, ...cultureCues];
 
   return dedupeCues(ordered).slice(0, 3);
 }
@@ -794,11 +729,12 @@ export function getSignatureCue(
 ): SoundCue {
   const placeAnchor = getPlaceSoundAnchor(context);
   const effectiveNarrativeAnchors =
-    narrativeAnchors ?? getRuleBasedNarrativeAnchors(context);
+    narrativeAnchors ?? buildRuleBasedNarrativeAnchors(context);
   const preferNarrativeSignature =
     effectiveNarrativeAnchors?.source === 'llm' &&
     !placeAnchor?.signature &&
     !placeAnchor?.cues[0];
+  const sceneSignatureCue = getSceneLocalitySignatureCue(context);
 
   return (
     (preferNarrativeSignature ? effectiveNarrativeAnchors?.signature : undefined) ??
@@ -807,6 +743,7 @@ export function getSignatureCue(
     placeAnchor?.cues[0] ??
     effectiveNarrativeAnchors?.signature ??
     effectiveNarrativeAnchors?.cues[0] ??
+    sceneSignatureCue ??
     CULTURE_SIGNATURES[context.cultureRegion] ??
     (context.nearWater ? WATER_CUES[context.nearWater] : undefined) ??
     getSelectedSoundCues(context, effectiveNarrativeAnchors)[0] ??
@@ -820,7 +757,7 @@ export function getCulturalAtmosphereTone(
 ): string {
   const placeAnchor = getPlaceSoundAnchor(context);
   const effectiveNarrativeAnchors =
-    narrativeAnchors ?? getRuleBasedNarrativeAnchors(context);
+    narrativeAnchors ?? buildRuleBasedNarrativeAnchors(context);
 
   if (placeAnchor?.atmosphereTone) {
     return placeAnchor.atmosphereTone;
@@ -839,8 +776,9 @@ export function getPromptSpecificityInstruction(
 ): string {
   const locationName = getSummaryLocationName(context);
   const effectiveNarrativeAnchors =
-    narrativeAnchors ?? getRuleBasedNarrativeAnchors(context);
+    narrativeAnchors ?? buildRuleBasedNarrativeAnchors(context);
   const featuredCue = getSignatureCue(context, effectiveNarrativeAnchors);
+  const settingLabel = getSceneSettingLabel(context, 'en');
 
   if (effectiveNarrativeAnchors?.specificityInstruction) {
     return effectiveNarrativeAnchors.specificityInstruction;
@@ -850,7 +788,7 @@ export function getPromptSpecificityInstruction(
     return `Prioritize the concrete local anchors above, especially ${featuredCue.label.en}, so the scene is recognisably ${locationName}, not just a generic ${context.cultureRegion.replace(/_/g, ' ')} setting.`;
   }
 
-  return `Center the scene on one precise routine residents of ${locationName} would recognize immediately, such as ${featuredCue.label.en}, and avoid falling back to generic regional stock sounds.`;
+  return `Center the scene on one precise routine residents of ${locationName} would recognize immediately within this ${settingLabel}, such as ${featuredCue.label.en}, and avoid falling back to generic regional stock sounds.`;
 }
 
 export function getSoundSummary(

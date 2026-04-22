@@ -23,6 +23,7 @@ import { inferClimate } from './climateInferrer';
 import { inferCulture } from './cultureInferrer';
 import { inferEconomicLevel } from './economyInferrer';
 import { inferFromCoordinates } from './coordinateInferrer';
+import { inferLocalScene } from './localSceneInferrer';
 
 /**
  * 验证坐标有效性
@@ -125,6 +126,19 @@ export function buildLocationContext(
     economicLevel = 0.5;
   }
 
+  let sceneInference;
+  try {
+    sceneInference = inferLocalScene(response, {
+      regionType: regionClassification.regionType,
+      terrain: terrainResult.terrain,
+      nearWater: terrainResult.nearWater,
+      urbanDensity: regionClassification.urbanDensity,
+    });
+  } catch (error) {
+    console.error('[PinDrop Error] LocalSceneInferrer:', error);
+    sceneInference = undefined;
+  }
+
   // 构建完整 LocationContext
   return {
     // 基础地理
@@ -157,6 +171,11 @@ export function buildLocationContext(
 
     // 经济水平
     economicLevel,
+
+    // 局部场景推断
+    sceneType: sceneInference?.sceneType,
+    sceneConfidence: sceneInference?.sceneConfidence,
+    sceneTags: sceneInference?.sceneTags,
   };
 }
 

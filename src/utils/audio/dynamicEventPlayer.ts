@@ -21,6 +21,27 @@ import type { SpatialAudioController } from './spatialAudioController';
 
 /** 日志前缀 */
 const LOG_PREFIX = '[PinDrop Audio]';
+const TERMINAL_DYNAMIC_EVENT_FAILURE_PATTERNS = [
+  /elevenlabs request failed \((401|403)\):/i,
+  /api key/i,
+  /invalid or expired/i,
+  /quota/i,
+  /credits? remaining/i,
+  /plan upgrade/i,
+];
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function shouldPauseDynamicEvents(error: unknown): boolean {
+  const message = getErrorMessage(error);
+  return TERMINAL_DYNAMIC_EVENT_FAILURE_PATTERNS.some((pattern) => pattern.test(message));
+}
 
 /**
  * 音频生成函数类型
@@ -127,6 +148,8 @@ export class DynamicEventPlayer {
 
     // 使用 setTimeout 调度下一次触发
     this.pendingTimeout = setTimeout(async () => {
+      this.pendingTimeout = null;
+
       if (!this.isRunning) {
         return;
       }
@@ -220,10 +243,21 @@ export class DynamicEventPlayer {
         `pan: ${event.panFromTo[0]} → ${event.panFromTo[1]}，持续: ${event.durationMs}ms`
       );
     } catch (error) {
-      // 生成/解码失败时记录日志并继续（不阻塞调度）
-      console.error(
-        `${LOG_PREFIX} DynamicEvent: 播放事件 "${event.id}" 失败:`,
-        error instanceof Error ? error.message : error
+      const errorMessage = getErrorMessage(error);
+
+      if (shouldPauseDynamicEvents(errorMessage)) {
+        console.warn(
+          `${LOG_PREFIX} DynamicEvent: 因 ElevenLabs 计费或访问限制暂停动态事件调度:`,
+          errorMessage
+        );
+        this.stop();
+        return;
+      }
+
+      // 生成/解码失败时记录 warning 并继续（不阻塞调度）
+      console.warn(
+        `${LOG_PREFIX} DynamicEvent: 播放事件 "${event.id}" 失败，将继续调度:`,
+        errorMessage
       );
     }
   }

@@ -12,11 +12,16 @@ import { useI18n } from '@/i18n/I18nProvider';
 import type { AppLocale } from '@/i18n/types';
 import type { LayerType, AudioBlobMap, PlaybackStateInfo } from '@/utils/audio/types';
 import type { LocationContext } from '@/types/locationContext';
-import type { SoundscapeRecipe } from '@/types/soundscapeRecipe';
+import type {
+  LocalizedCueLabel,
+  NarrativeAnchorCue,
+  SoundscapeRecipe,
+} from '@/types/soundscapeRecipe';
 import type { CachedSoundscape } from '@/utils/soundscapeCache';
 import type { UserPreferences } from '@/components/settings/types';
 import {
   PREFERENCES_UPDATED_EVENT,
+  arePreferencesEqual,
   getLlmEnhancementConfig,
   preferencesStore,
 } from '@/components/settings/preferencesStore';
@@ -43,6 +48,7 @@ import {
   enrichSoundscapeNarrative,
   sanitizeNarrativeDisplayText,
 } from '@/utils/soundscape/llmAnchorEnricher';
+import { buildRuleBasedNarrativeAnchors } from '@/utils/soundscape/sceneNarrative';
 
 type SessionStatus = 'idle' | 'loading' | 'ready' | 'error';
 type GenerationJobStatus = 'resolving' | 'generating' | 'error';
@@ -104,20 +110,101 @@ export interface SessionLocationEntry {
   sceneDescription?: string;
 }
 
-function textMatchesLocale(text: string, locale: AppLocale): boolean {
-  const normalized = text.trim();
+function normalizeDisplayText(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function stripNarrativeLeadScaffolding(text: string): string {
+  return normalizeDisplayText(
+    text.replace(
+      /^(?:anchor|anchors|cue|cues|summary|scene\s*\d+|sound\s*cue|sound\s*cues)\s*[:\-]\s*/i,
+      ''
+    )
+  );
+}
+
+function getScriptFlags(text: string): { hasCjk: boolean; hasLatin: boolean } {
+  return {
+    hasCjk: /[\u3400-\u9fff]/.test(text),
+    hasLatin: /[A-Za-z]/.test(text),
+  };
+}
+
+function strictlyMatchesLocale(text: string, locale: AppLocale): boolean {
+  const normalized = stripNarrativeLeadScaffolding(text);
   if (!normalized) {
     return false;
   }
 
-  const hasCjk = /[\u3400-\u9fff]/.test(normalized);
-  const hasLatin = /[A-Za-z]/.test(normalized);
+  const { hasCjk, hasLatin } = getScriptFlags(normalized);
 
   if (locale === 'zh-CN') {
-    return hasCjk || !hasLatin;
+    return hasCjk && !hasLatin;
   }
 
-  return hasLatin || !hasCjk;
+  return hasLatin && !hasCjk;
+}
+
+function extractLocaleSpecificSegments(text: string, locale: AppLocale): string[] {
+  return text
+    .split(/[()\[\]{}（）【】\r\n]+/)
+    .flatMap((segment) => segment.split(/\s*(?:\/|｜|\|)\s*/))
+    .map((segment) => stripNarrativeLeadScaffolding(segment))
+    .filter((segment, index, allSegments) => {
+      return strictlyMatchesLocale(segment, locale) && allSegments.indexOf(segment) === index;
+    });
+}
+
+function stripNonTargetScriptText(
+  text: string,
+  locale: AppLocale
+): string | undefined {
+  const normalized = stripNarrativeLeadScaffolding(text);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const stripped =
+    locale === 'zh-CN'
+      ? normalized
+          .replace(/[A-Za-z0-9]+(?:[\/&'’._:-][A-Za-z0-9]+)*/g, ' ')
+          .replace(/[()[\]{}<>]/g, ' ')
+      : normalized
+          .replace(/[\u3400-\u9fff]/g, ' ')
+          .replace(/[（）。！？；：，、】【、《》「」『』]/g, ' ');
+
+  const cleaned = normalizeDisplayText(stripped).replace(
+    /^[\s,;:/|()[\]{}<>-]+|[\s,;:/|()[\]{}<>-]+$/g,
+    ''
+  );
+
+  if (!strictlyMatchesLocale(cleaned, locale)) {
+    return undefined;
+  }
+
+  return cleaned;
+}
+
+function resolveLocaleDisplayText(text: string, locale: AppLocale): string | undefined {
+  const normalized = stripNarrativeLeadScaffolding(text);
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (strictlyMatchesLocale(normalized, locale)) {
+    return normalized;
+  }
+
+  const extractedSegments = extractLocaleSpecificSegments(normalized, locale);
+  if (extractedSegments.length > 0) {
+    return extractedSegments.join(' / ');
+  }
+
+  return stripNonTargetScriptText(normalized, locale);
+}
+
+function textMatchesLocale(text: string, locale: AppLocale): boolean {
+  return resolveLocaleDisplayText(text, locale) !== undefined;
 }
 
 function isDisplayableSceneDescription(text: string): boolean {
@@ -134,54 +221,213 @@ function isDisplayableSceneDescription(text: string): boolean {
 }
 
 function getCueLabelText(
-  cue: SoundscapeRecipe['narrativeAnchors'] extends { cues: Array<infer TCue> } ? TCue : never,
+  cue: NarrativeAnchorCue,
   locale: AppLocale
 ): string | undefined {
-  const primary = cue.label?.[locale]?.trim();
-  if (primary && textMatchesLocale(primary, locale)) {
+  const primary = resolveLocaleDisplayText(cue.label?.[locale] ?? '', locale);
+  if (primary) {
     return primary;
   }
 
-  const prompt = cue.prompt?.trim();
-  if (prompt && textMatchesLocale(prompt, locale)) {
+  const prompt = resolveLocaleDisplayText(cue.prompt ?? '', locale);
+  if (prompt) {
     return prompt;
   }
 
   return undefined;
 }
 
+function getCueLabelSegments(
+  cue: NarrativeAnchorCue,
+  locale: AppLocale
+): string[] {
+  const rawCandidates = [cue.label?.[locale] ?? '', cue.prompt ?? ''];
+  const segments: string[] = [];
+
+  for (const candidate of rawCandidates) {
+    const localeSegments = extractLocaleSpecificSegments(candidate, locale);
+    if (localeSegments.length > 0) {
+      for (const segment of localeSegments) {
+        const normalized = segment.replace(/\s+/g, ' ').trim();
+        if (normalized && !segments.includes(normalized)) {
+          segments.push(normalized);
+        }
+      }
+    }
+
+    const fallback = resolveLocaleDisplayText(candidate, locale);
+    if (fallback) {
+      const normalized = fallback.replace(/\s+/g, ' ').trim();
+      if (normalized && !segments.includes(normalized)) {
+        segments.push(normalized);
+      }
+    }
+  }
+
+  return segments;
+}
+
+function normalizeComparableText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\s'"`~!@#$%^&*+=|\\/:;,.?()[\]{}<>-]+/g, '');
+}
+
+function isLocationLikeLabel(
+  label: string,
+  context: LocationContext | null | undefined
+): boolean {
+  if (!context) {
+    return false;
+  }
+
+  const normalizedLabel = normalizeComparableText(label);
+  if (!normalizedLabel) {
+    return false;
+  }
+
+  const locationParts = [
+    context.countryName,
+    context.administrativeRegionName ?? '',
+    context.cityName,
+    context.regionName ?? '',
+  ]
+    .map((part) => normalizeComparableText(part))
+    .filter((part, index, allParts) => part.length >= 2 && allParts.indexOf(part) === index);
+
+  if (locationParts.length === 0) {
+    return false;
+  }
+
+  return locationParts.some((part) => {
+    if (normalizedLabel === part) {
+      return true;
+    }
+
+    if (!normalizedLabel.includes(part)) {
+      return false;
+    }
+
+    const residual = normalizedLabel.split(part).join('');
+    return residual.length <= 3;
+  });
+}
+
+function getComparableCueUnits(text: string, locale: AppLocale): string[] {
+  if (locale === 'zh-CN') {
+    const stripped = text.replace(/[的了着在里中上下一些一阵一声偶尔远处近处附近轻轻低低隐约]/g, '');
+    return Array.from(new Set(Array.from(stripped).filter((char) => /[\u3400-\u9fff]/.test(char))));
+  }
+
+  return text
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(
+      (token) =>
+        token.length >= 3 &&
+        !['the', 'and', 'with', 'from', 'near', 'into', 'onto', 'over', 'under', 'along', 'through'].includes(token)
+    );
+}
+
+function areNearDuplicateCueLabels(
+  left: string,
+  right: string,
+  locale: AppLocale
+): boolean {
+  const normalizedLeft = normalizeComparableText(left);
+  const normalizedRight = normalizeComparableText(right);
+
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+
+  if (
+    normalizedLeft === normalizedRight ||
+    normalizedLeft.includes(normalizedRight) ||
+    normalizedRight.includes(normalizedLeft)
+  ) {
+    return true;
+  }
+
+  const leftUnits = getComparableCueUnits(left, locale);
+  const rightUnits = getComparableCueUnits(right, locale);
+
+  if (leftUnits.length === 0 || rightUnits.length === 0) {
+    return false;
+  }
+
+  const rightUnitSet = new Set(rightUnits);
+  const overlap = leftUnits.filter((unit) => rightUnitSet.has(unit)).length;
+  const overlapRatio = overlap / Math.min(leftUnits.length, rightUnits.length);
+
+  return overlapRatio >= 0.75;
+}
+
 function buildCueListDescription(
   narrativeAnchors: SoundscapeRecipe['narrativeAnchors'] | null | undefined,
-  locale: AppLocale
+  locale: AppLocale,
+  context?: LocationContext | null
 ): string | undefined {
   const cues = narrativeAnchors?.cues ?? [];
-  const labels = cues
-    .map((cue) => getCueLabelText(cue, locale))
-    .filter((label): label is string => Boolean(label))
-    .map((label) => label.replace(/\s+/g, ' ').trim())
-    .filter((label, index, allLabels) => allLabels.indexOf(label) === index)
-    .slice(0, 4);
+  const fallbackCues =
+    context ? (buildRuleBasedNarrativeAnchors(context)?.cues ?? []) : [];
+  const labels: string[] = [];
+  const pushLabel = (candidate: string): void => {
+    const normalized = candidate.replace(/\s+/g, ' ').trim();
+    if (!normalized || isLocationLikeLabel(normalized, context)) {
+      return;
+    }
 
-  if (labels.length < 3) {
+    if (labels.some((existing) => areNearDuplicateCueLabels(existing, normalized, locale))) {
+      return;
+    }
+
+    labels.push(normalized);
+  };
+
+  for (const cue of cues) {
+    for (const segment of getCueLabelSegments(cue, locale)) {
+      pushLabel(segment);
+    }
+  }
+
+  if (labels.length >= 3) {
+    return labels.slice(0, 3).join(' / ');
+  }
+
+  if (labels.length === 0 || labels.length === 1) {
     return undefined;
   }
 
-  return labels.join(locale === 'zh-CN' ? '、' : ', ');
+  for (const cue of fallbackCues) {
+    const fallbackLabel = getCueLabelText(cue, locale);
+    if (!fallbackLabel) {
+      continue;
+    }
+
+    pushLabel(fallbackLabel);
+    if (labels.length >= 3) {
+      return labels.slice(0, 3).join(' / ');
+    }
+  }
+
+  return labels.slice(0, 3).join(' / ');
 }
 
 function getDisplayableNarrativeSummary(
-  summary: SoundscapeRecipe['narrativeAnchors'] extends { summary: infer T } ? T : never,
+  summary: LocalizedCueLabel | undefined,
   locale: AppLocale,
   context?: LocationContext
 ): string | undefined {
-  const candidate = summary?.[locale]?.trim();
-  if (
-    candidate &&
-    textMatchesLocale(candidate, locale) &&
-    isDisplayableSceneDescription(candidate)
-  ) {
+  const candidate = resolveLocaleDisplayText(summary?.[locale] ?? '', locale);
+  if (candidate && isDisplayableSceneDescription(candidate)) {
     const sanitized = sanitizeNarrativeDisplayText(candidate, locale, context);
-    return sanitized ?? candidate;
+    const localizedSanitized = sanitized
+      ? resolveLocaleDisplayText(sanitized, locale)
+      : undefined;
+
+    return localizedSanitized ?? candidate;
   }
 
   return undefined;
@@ -582,7 +828,12 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
   }, []);
 
   const syncBrowserSettings = useCallback((): void => {
-    setPreferences(preferencesStore.loadPreferences());
+    const nextPreferences = preferencesStore.loadPreferences();
+    setPreferences((currentPreferences) =>
+      arePreferencesEqual(currentPreferences, nextPreferences)
+        ? currentPreferences
+        : nextPreferences
+    );
     setHasConfiguredApiKey(hasGenerationConfiguration());
   }, [hasGenerationConfiguration]);
 
@@ -759,6 +1010,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         let narrativeAnchors: SoundscapeRecipe['narrativeAnchors'] | null = null;
         let narrativeSource: NarrativeSource = 'rules';
         let llmFallbackReason: LlmFallbackReason | null = null;
+        const ruleNarrativeAnchors = buildRuleBasedNarrativeAnchors(location);
 
         try {
           narrativeAnchors = await enrichSoundscapeNarrative(
@@ -776,9 +1028,12 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
               message: messages.session.llmRequiredError,
             });
             narrativeAnchors = {
+              ...(ruleNarrativeAnchors ?? {
+                source: 'rules' as const,
+                confidence: 0.58,
+                cues: [],
+              }),
               source: 'rules',
-              confidence: 0.58,
-              cues: [],
               fallbackReasonCode: llmFallbackReason,
               fallbackReason: createLlmFallbackReasonLabel(
                 locale,
@@ -796,9 +1051,12 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
             errorDetails: getSerializableErrorDetails(error),
           });
           narrativeAnchors = {
+            ...(ruleNarrativeAnchors ?? {
+              source: 'rules' as const,
+              confidence: 0.58,
+              cues: [],
+            }),
             source: 'rules',
-            confidence: 0.58,
-            cues: [],
             fallbackReasonCode: llmFallbackReason,
             fallbackReason: createLlmFallbackReasonLabel(locale, llmFallbackReason, detail),
           };
@@ -1004,7 +1262,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       const llmNarrativeAnchors =
         narrativeAnchors?.source === 'llm' ? narrativeAnchors : undefined;
       const sceneDescription =
-        buildCueListDescription(llmNarrativeAnchors, displayLocale) ??
+        buildCueListDescription(llmNarrativeAnchors, displayLocale, locationContext) ??
         (llmNarrativeAnchors?.summary
           ? getDisplayableNarrativeSummary(
               llmNarrativeAnchors.summary,

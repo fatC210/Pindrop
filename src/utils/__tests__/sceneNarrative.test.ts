@@ -27,6 +27,9 @@ const SHITAN_CONTEXT: LocationContext = {
   nearWater: null,
   climate: 'temperate',
   economicLevel: 0.7,
+  sceneType: 'commercial_district',
+  sceneConfidence: 0.76,
+  sceneTags: ['market', 'town-center'],
 };
 
 const BAOAN_CONTEXT: LocationContext = {
@@ -48,6 +51,9 @@ const BAOAN_CONTEXT: LocationContext = {
   nearWater: null,
   climate: 'temperate',
   economicLevel: 0.85,
+  sceneType: 'residential_block',
+  sceneConfidence: 0.8,
+  sceneTags: ['residential'],
 };
 
 const BEIJING_CONTEXT: LocationContext = {
@@ -69,6 +75,9 @@ const BEIJING_CONTEXT: LocationContext = {
   nearWater: null,
   climate: 'temperate',
   economicLevel: 0.9,
+  sceneType: 'historic_quarter',
+  sceneConfidence: 0.79,
+  sceneTags: ['historic'],
 };
 
 const GUILIN_CONTEXT: LocationContext = {
@@ -90,6 +99,9 @@ const GUILIN_CONTEXT: LocationContext = {
   nearWater: 'river',
   climate: 'temperate',
   economicLevel: 0.73,
+  sceneType: 'riverfront',
+  sceneConfidence: 0.82,
+  sceneTags: ['river'],
 };
 
 describe('sceneNarrative', () => {
@@ -102,8 +114,10 @@ describe('sceneNarrative', () => {
     expect(townCues.map((cue) => cue.label.en)).not.toEqual(
       suburbCues.map((cue) => cue.label.en)
     );
-    expect(townCues.some((cue) => cue.label.en === 'town-square murmur')).toBe(true);
-    expect(suburbCues.some((cue) => cue.label.en === 'neighborhood voices')).toBe(true);
+    expect(townCues[0]?.label.en).toBe('storefront footsteps and retail murmur');
+    expect(townCues[1]?.label.en).toBe('shopping bags, cups, and door chimes');
+    expect(suburbCues[0]?.label.en).toBe('quiet block air and leaves');
+    expect(suburbCues[1]?.label.en).toBe('gates, doors, and scooters');
   });
 
   it('writes summaries with the specific location name and a differentiated opening', () => {
@@ -112,8 +126,8 @@ describe('sceneNarrative', () => {
 
     expect(townSummary).toContain('Shitan');
     expect(suburbSummary).toContain('Baoan District');
-    expect(townSummary).toContain('small-town center');
-    expect(suburbSummary).toContain('city district');
+    expect(townSummary).toContain('commercial street');
+    expect(suburbSummary).toContain('residential block');
     expect(townSummary).not.toBe(suburbSummary);
   });
 
@@ -176,5 +190,39 @@ describe('sceneNarrative', () => {
 
     expect(summary).toContain(featuredCue.label.en);
     expect(summary).not.toContain('generic');
+  });
+
+  it('keeps riverfront nighttime cues coherent and non-duplicated', () => {
+    const cues = getSelectedSoundCues({
+      ...BAOAN_CONTEXT,
+      cityName: 'Wuhan',
+      regionName: 'Hanyang',
+      countryName: 'China',
+      currentLocalHour: 22,
+      timeSlot: 'night',
+      sceneType: 'riverfront',
+      sceneTags: ['river'],
+    });
+
+    expect(cues).toHaveLength(3);
+    expect(new Set(cues.map((cue) => cue.prompt)).size).toBe(3);
+    expect(cues[0]?.label.en).toBe('continuous river movement');
+    expect(cues[1]?.label.en).toBe('night wind and late riverside footsteps');
+  });
+
+  it('lets transit-hub scenes stay internally related at daytime', () => {
+    const cues = getSelectedSoundCues({
+      ...BAOAN_CONTEXT,
+      cityName: 'Shanghai',
+      regionName: 'Hongqiao',
+      sceneType: 'transit_hub',
+      sceneConfidence: 0.9,
+      sceneTags: ['transit'],
+      timeSlot: 'day',
+    });
+
+    expect(cues[0]?.label.en).toBe('station footsteps and rolling cases');
+    expect(cues[1]?.label.en).toBe('waves of platform movement');
+    expect(cues[2]?.label.en).toBe('a blurred overhead announcement');
   });
 });

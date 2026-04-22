@@ -16,6 +16,38 @@ export interface PlaceAddress {
   quarter?: string;
   residential?: string;
   road?: string;
+  pedestrian?: string;
+  footway?: string;
+  cycleway?: string;
+  amenity?: string;
+  leisure?: string;
+  tourism?: string;
+  shop?: string;
+  commercial?: string;
+  retail?: string;
+  industrial?: string;
+  office?: string;
+  railway?: string;
+  public_transport?: string;
+  aeroway?: string;
+  highway?: string;
+  landuse?: string;
+  natural?: string;
+  water?: string;
+  waterway?: string;
+  historic?: string;
+  man_made?: string;
+  beach?: string;
+  bay?: string;
+  harbour?: string;
+  marina?: string;
+  pier?: string;
+  dock?: string;
+  bridge?: string;
+  school?: string;
+  university?: string;
+  college?: string;
+  stadium?: string;
   country?: string;
 }
 

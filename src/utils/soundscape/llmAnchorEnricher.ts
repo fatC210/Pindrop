@@ -270,6 +270,11 @@ function buildContextPrompt(context: LocationContext): string {
     context.nearWater ? `near water: ${context.nearWater}` : null,
     `climate: ${context.climate}`,
     `region type: ${context.regionType}`,
+    context.sceneType ? `local scene: ${context.sceneType}` : null,
+    typeof context.sceneConfidence === 'number'
+      ? `scene confidence: ${context.sceneConfidence.toFixed(2)}`
+      : null,
+    context.sceneTags?.length ? `scene signals: ${context.sceneTags.join(', ')}` : null,
     `language: ${context.languageVariant}`,
   ]
     .filter((part): part is string => Boolean(part))
@@ -999,6 +1004,8 @@ function buildMessages(
     'Use 3 to 4 concrete audible details so a listener can compare the paragraph with the generated audio.',
     'Make the 3 to 4 sound anchors clearly separable as short clauses or short sentences.',
     'Prefer a compact sound palette made of specific hearable elements such as wind, insects, waves, traffic, footsteps, bells, birds, engines, shutters, chimes, or one plausible distant human texture.',
+    'Treat country, province, and city as weak prior context only. Let the clicked point and its local scene signals decide the immediate sound scene.',
+    'The local time should noticeably change which sounds feel active, sparse, opening up, settling down, or receding into the background.',
     'Do not invent landmarks, festivals, narration, announcer intros, dialogue scripts, bullets, drafts, or numbered headings.',
     'Do not describe a narrator, monologue, spoken intro, voice-over, announcer, quoted speech, readout, recited line, or any clearly intelligible foreground speech.',
     'Environmental human sound is allowed as distant or blurred local background texture, such as crowd wash, passersby murmur, a station announcement, a call to prayer, or low whispers, but never as a clear solo voice or obvious TTS phrase.',
@@ -1010,6 +1017,8 @@ function buildMessages(
     '- Output only the final short display paragraph, with no thinking process or analysis.',
     '- Describe concrete audible details with local character.',
     '- Prioritize 3 to 4 specific sounds over broad scene-setting.',
+    '- Infer the immediate scene from the clicked point and nearby semantics, not just the city name. Country, province, and city are only weak priors.',
+    '- Make the chosen sounds feel like they could coexist in the same exact spot at this local time.',
     '- Keep the sound anchors easy to separate into short clauses or short sentences.',
     '- Prioritize markets, rivers, parks, shops, water, vehicles, weather, animals, transit, and everyday routines when relevant.',
     '- Keep it natural, specific, complete, and short.',

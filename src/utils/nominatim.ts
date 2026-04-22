@@ -6,6 +6,10 @@ import { throttleNominatimRequest } from './throttle';
 
 export interface NominatimResponse {
   display_name: string;
+  category?: string;
+  type?: string;
+  addresstype?: string;
+  name?: string;
   address: PlaceAddress & {
     country_code?: string; // 用于语言映射
   };

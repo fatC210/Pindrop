@@ -37,8 +37,6 @@ function joinLocationParts(parts: Array<string | undefined>, locale: AppLocale):
 
   const separator = locale === 'zh-CN' ? '\uFF0C' : ', ';
   return uniqueParts.join(separator);
-
-  return uniqueParts.join(locale === 'zh-CN' ? '，' : ', ');
 }
 
 function formatLocationTitle(
@@ -52,23 +50,12 @@ function formatLocationTitle(
   const administrativeRegionName =
     localizedLabel?.administrativeRegionName ?? entry.administrativeRegionName;
   const cityName = localizedLabel?.cityName ?? entry.cityName;
+  const regionName = localizedLabel?.regionName ?? entry.regionName;
   const countryName = localizedLabel?.countryName ?? entry.countryName;
   const orderedParts =
     locale === 'zh-CN'
-      ? [countryName, administrativeRegionName, cityName]
-      : [cityName, administrativeRegionName, countryName];
-
-  return joinLocationParts(orderedParts, locale);
-
-  if (false) {
-    return Array.from(
-      new Set(
-        orderedParts
-          .map((part) => part?.trim())
-          .filter((part): part is string => Boolean(part))
-      )
-    ).join('，');
-  }
+      ? [countryName, administrativeRegionName, cityName, regionName]
+      : [regionName, cityName, administrativeRegionName, countryName];
 
   return joinLocationParts(orderedParts, locale);
 }

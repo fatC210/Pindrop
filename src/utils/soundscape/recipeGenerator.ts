@@ -36,7 +36,7 @@ import {
   SILENT_ATMOSPHERE,
 } from './layerBuilder';
 
-export const CURRENT_PROMPT_VERSION = 2;
+export const CURRENT_PROMPT_VERSION = 3;
 
 /**
  * 将小时数格式化为 "HH:MM" 字符串

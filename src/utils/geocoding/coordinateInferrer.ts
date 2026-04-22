@@ -114,6 +114,11 @@ export function buildPolarContext(lat: number, lng: number): LocationContext {
 
     // 经济水平
     economicLevel: 0,
+
+    // 局部场景推断
+    sceneType: 'polar_outpost',
+    sceneConfidence: 0.95,
+    sceneTags: ['polar', 'ice', 'wind'],
   };
 }
 
@@ -168,6 +173,11 @@ export function buildOceanContext(lat: number, lng: number): LocationContext {
 
     // 经济水平
     economicLevel: 0,
+
+    // 局部场景推断
+    sceneType: 'open_water',
+    sceneConfidence: 0.94,
+    sceneTags: ['open-water', 'sea', 'swell'],
   };
 }
 
@@ -226,6 +236,11 @@ export function buildWildernessContext(
 
     // 经济水平
     economicLevel: 0,
+
+    // 局部场景推断
+    sceneType: 'rural_fields',
+    sceneConfidence: 0.36,
+    sceneTags: ['isolated', 'open', 'fallback'],
   };
 }
 

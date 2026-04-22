@@ -375,7 +375,7 @@ describe('Home page history visibility', () => {
     renderHome();
 
     expect(screen.queryByText('ElevenLabs API key required')).toBeNull();
-    expect(screen.getByText('Paris, Ile-de-France, France')).not.toBeNull();
+    expect(screen.getByText('Montmartre, Paris, Ile-de-France, France')).not.toBeNull();
     expect(
       screen.getByText(
         'A riverside bookseller is setting out paperbacks while footsteps and market shutters move around the quay.'
@@ -815,12 +815,9 @@ describe('Home page history visibility', () => {
       })
     );
 
-    const expectedLocalizedTitle = '\u4e2d\u56fd\uFF0C\u5e7f\u4e1c\uFF0C\u8087\u5e86';
+    const expectedLocalizedTitle = '\u4e2d\u56fd\uFF0C\u5e7f\u4e1c\uFF0C\u8087\u5e86\uFF0C\u7aef\u5dde\u533a';
     renderHome();
     expect(screen.getByText(expectedLocalizedTitle)).not.toBeNull();
-    return;
-
-    expect(screen.getByText('中国，广东，肇庆，端州区')).not.toBeNull();
   });
 
   test('renders a card title using the card display locale instead of the current interface locale', () => {
