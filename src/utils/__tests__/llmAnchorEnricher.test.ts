@@ -40,15 +40,20 @@ describe('llmAnchorEnricher', () => {
     ).toBe('https://example.com/custom/chat/completions');
   });
 
-  it('asks the model for structured summaries and cue prompts for the selected place', () => {
+  it('asks the model for a directly displayable narrative body for the selected place', () => {
     const messages = __private__.buildMessages(SAMPLE_CONTEXT, 'zh-CN');
     const systemMessage = messages[0]?.content ?? '';
     const userMessage = messages[1]?.content ?? '';
 
-    expect(systemMessage).toContain('Return only the description text');
+    expect(systemMessage).toContain(
+      'Generate one place-specific soundscape description paragraph'
+    );
+    expect(systemMessage).toContain('Return only the final body text');
     expect(systemMessage).toContain('Write in Simplified Chinese');
-    expect(userMessage).toContain('Keep it concise, natural, and complete.');
-    expect(userMessage).toContain('Never output strings like "conversation 1", "Cues:"');
+    expect(systemMessage).toContain('Do not reply with the place name');
+    expect(userMessage).toContain('Output only the final display paragraph');
+    expect(userMessage).toContain('Keep it natural, specific, and complete.');
+    expect(userMessage).toContain('Never output strings like "conversation 1", "Cues:", "Summary:"');
     expect(userMessage).toContain('Location: Georgia, Imereti, Kutaisi');
     expect(userMessage).toContain('Context: time: day; terrain: river; near water: river');
   });
@@ -189,6 +194,53 @@ describe('llmAnchorEnricher', () => {
     });
   });
 
+  it('drops appended location echoes from the displayed freeform summary', () => {
+    const content = [
+      'Canvas stalls are flapping in the noon wind while a truck unloads crates beside the market road.',
+      'China, Qinghai, Dulan County',
+      '(中国青海省都兰县).',
+    ].join('\n');
+
+    expect(
+      __private__.normalizeFreeformAnchors(
+        content,
+        'en',
+        {
+          ...SAMPLE_CONTEXT,
+          administrativeRegionName: 'Qinghai',
+          cityName: 'Dulan County',
+          regionName: 'Qinghai',
+          countryName: 'China',
+        }
+      )
+    ).toMatchObject({
+      source: 'llm',
+      confidence: 0.72,
+      summary: {
+        en: 'Canvas stalls are flapping in the noon wind while a truck unloads crates beside the market road.',
+        'zh-CN': '',
+      },
+      cues: [
+        {
+          prompt:
+            'Canvas stalls are flapping in the noon wind while a truck unloads crates beside the market road',
+          label: {
+            en: 'Canvas stalls are flapping in the',
+            'zh-CN': '',
+          },
+        },
+      ],
+      signature: {
+        prompt:
+          'Canvas stalls are flapping in the noon wind while a truck unloads crates beside the market road',
+        label: {
+          en: 'Canvas stalls are flapping in the',
+          'zh-CN': '',
+        },
+      },
+    });
+  });
+
   it('prefers non-reasoning content parts when the provider returns mixed content blocks', async () => {
     vi.stubGlobal(
       'fetch',
@@ -246,7 +298,119 @@ describe('llmAnchorEnricher', () => {
     });
   });
 
-  it('returns null when the provider only echoes reasoning or prompt scaffolding', async () => {
+  it('extracts only the narrative body from a scaffolded freeform LLM response', () => {
+    const content = `1. Analyze the Request:
+* Goal: Generate one short place-specific soundscape description.
+
+2. Brainstorming Soundscape Details:
+* Leizhou is in the tropics, on a plain.
+* City center means bustling markets, street vendors, and tropical fruit sellers.
+* Electric scooters hum past the curb while vendors call out prices in the local dialect.
+* Audible details: chopping fruit, scooter tires over warm pavement.`;
+
+    expect(
+      __private__.normalizeFreeformAnchors(content, 'en', {
+        ...SAMPLE_CONTEXT,
+        administrativeRegionName: 'Guangdong',
+        cityName: 'Leizhou',
+        regionName: 'Zhanjiang',
+        countryName: 'China',
+        climate: 'tropical',
+        terrain: 'plain',
+      })
+    ).toMatchObject({
+      source: 'llm',
+      confidence: 0.72,
+      summary: {
+        en:
+          'Leizhou is in the tropics, on a plain. City center means bustling markets, street vendors, and tropical fruit sellers. Electric scooters hum past the curb while vendors call out prices in the local dialect.',
+        'zh-CN': '',
+      },
+      cues: [
+        {
+          prompt: 'Leizhou is in the tropics, on a plain',
+          label: {
+            en: 'Leizhou is in the tropics, on',
+            'zh-CN': '',
+          },
+        },
+        {
+          prompt: 'City center means bustling markets, street vendors, and tropical fruit sellers',
+          label: {
+            en: 'City center means bustling markets, street',
+            'zh-CN': '',
+          },
+        },
+        {
+          prompt:
+            'Electric scooters hum past the curb while vendors call out prices in the local dialect',
+          label: {
+            en: 'Electric scooters hum past the curb',
+            'zh-CN': '',
+          },
+        },
+      ],
+      signature: {
+        prompt: 'Leizhou is in the tropics, on a plain',
+        label: {
+          en: 'Leizhou is in the tropics, on',
+          'zh-CN': '',
+        },
+      },
+    });
+  });
+
+  it('prioritizes the third brainstorm section over earlier analysis and location sections', () => {
+    const content = `1. **Analyze the Request:**
+* **Goal:** Generate one short place-specific soundscape description.
+* **Location:** China, Sichuan, Shangyi (尚义镇 - Shangyi Town, located in Meishan, Sichuan, on the Chengdu Plain).
+
+2. **Analyze the Location & Context:**
+* *Shangyi, Sichuan:* A town on the western edge of the Chengdu Plain.
+* *Day, plain, temperate, town:* Expect sounds of daily commerce, irrigation canals, bicycles, and local chatter.
+
+3. **Brainstorm Audible Details (Local Character):**
+* Sichuan dialect bargaining at the morning market.
+* Clack of mahjong tiles from a roadside teahouse.
+* Flowing water in the small canals/streams typical of the plain.
+* Electric tricycles (三轮车).`;
+
+    expect(
+      __private__.normalizeFreeformAnchors(content, 'en', {
+        ...SAMPLE_CONTEXT,
+        administrativeRegionName: 'Sichuan',
+        cityName: 'Shangyi',
+        regionName: 'Meishan',
+        countryName: 'China',
+        regionType: 'town',
+        terrain: 'plain',
+      })
+    ).toMatchObject({
+      source: 'llm',
+      confidence: 0.72,
+      summary: {
+        en:
+          'Sichuan dialect bargaining at the morning market. Clack of mahjong tiles from a roadside teahouse. Flowing water in the small canals/streams typical of the plain. Electric tricycles (三轮车).',
+        'zh-CN': '',
+      },
+      cues: [
+        {
+          prompt: 'Sichuan dialect bargaining at the morning market',
+        },
+        {
+          prompt: 'Clack of mahjong tiles from a roadside teahouse',
+        },
+        {
+          prompt: 'Flowing water in the small canals/streams typical of the plain',
+        },
+      ],
+      signature: {
+        prompt: 'Sichuan dialect bargaining at the morning market',
+      },
+    });
+  });
+
+  it('returns null when the provider only returns reasoning-like prose without a body', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -273,12 +437,154 @@ describe('llmAnchorEnricher', () => {
     ).resolves.toBeNull();
   });
 
-  it('rejects list-like freeform summaries that are not safe to show in the card', () => {
+  it('normalizes list-like freeform responses down to the narrative body', () => {
     expect(
       __private__.normalizeFreeformAnchors(
         'Cues: 1. Bronze temple bell ringing across the valley. 2. Canvas tarps being folded.',
         'en'
       )
-    ).toBeNull();
+    ).toMatchObject({
+      source: 'llm',
+      confidence: 0.72,
+      summary: {
+        en: 'Bronze temple bell ringing across the valley. Canvas tarps being folded.',
+        'zh-CN': '',
+      },
+      cues: [
+        {
+          prompt: 'Bronze temple bell ringing across the valley',
+          label: {
+            en: 'Bronze temple bell ringing across the',
+            'zh-CN': '',
+          },
+        },
+        {
+          prompt: 'Canvas tarps being folded',
+          label: {
+            en: 'Canvas tarps being folded',
+            'zh-CN': '',
+          },
+        },
+      ],
+      signature: {
+        prompt: 'Bronze temple bell ringing across the valley',
+        label: {
+          en: 'Bronze temple bell ringing across the',
+          'zh-CN': '',
+        },
+      },
+    });
+  });
+
+  it('keeps the full narrative body instead of truncating it to three sentences', () => {
+    expect(
+      __private__.normalizeFreeformAnchors(
+        [
+          'A butcher is chopping filling in the wet market.',
+          'Vendors call out prices in a Beijing accent.',
+          'Electric tricycles thread through the lane with short horn bursts.',
+          'Water from the nearby park drifts into the background under a radio opera phrase.',
+        ].join(' '),
+        'en'
+      )
+    ).toMatchObject({
+      source: 'llm',
+      summary: {
+        en:
+          'A butcher is chopping filling in the wet market. Vendors call out prices in a Beijing accent. Electric tricycles thread through the lane with short horn bursts. Water from the nearby park drifts into the background under a radio opera phrase.',
+        'zh-CN': '',
+      },
+    });
+  });
+
+  it('drops JSON summaries that only restate the location hierarchy', () => {
+    expect(
+      __private__.normalizeAnchors(
+        {
+          summary_en: 'China, Qinghai, Dulan County',
+          cues: [
+            {
+              prompt_en: 'canvas stalls flapping in a county market wind',
+              label_en: 'canvas stalls in the wind',
+            },
+          ],
+        },
+        {
+          ...SAMPLE_CONTEXT,
+          administrativeRegionName: 'Qinghai',
+          cityName: 'Dulan County',
+          regionName: 'Qinghai',
+          countryName: 'China',
+        }
+      )
+    ).toEqual({
+      source: 'llm',
+      confidence: 0.72,
+      summary: undefined,
+      cues: [
+        {
+          prompt: 'canvas stalls flapping in a county market wind',
+          label: {
+            en: 'canvas stalls in the wind',
+            'zh-CN': 'canvas stalls in the wind',
+          },
+        },
+      ],
+      signature: undefined,
+      atmosphereTone: undefined,
+      specificityInstruction: undefined,
+    });
+  });
+
+  it('extracts only the zh-CN narrative body while still extracting useful cues', () => {
+    const content = `1.  **Analyze the Request:**
+    *   **Goal:** Generate one short place-specific soundscape description.
+    *   **Format:** Return ONLY the description text.
+    *   **Language:** Simplified Chinese (zh-CN).
+
+2.  **Analyze the Location & Context:**
+    *   Longsha District is in Qiqihar, Heilongjiang.
+
+3.  **Drafting the Soundscape (Iterative Process):**
+    *   *Draft 1 (Mental):* 在龙沙区的郊区，嫩江边的水声轻轻拍着岸，早市上小贩用东北口音招呼来往行人。龙沙公园里不时传来麻将牌碰撞声，远处还夹着自行车铃和零散车流声。 "location: {cityName: 'Longsha', regionName: null, countryName: 'China'} raw: { choices: [] }`;
+
+    const result = __private__.normalizeFreeformAnchors(content, 'zh-CN');
+
+    expect(result).toMatchObject({
+      source: 'llm',
+      confidence: 0.72,
+      summary: {
+        en: '',
+        'zh-CN': expect.any(String),
+      },
+      cues: [
+        {
+          prompt: '在龙沙区的郊区，嫩江边的水声轻轻拍着岸，早市上小贩用东北口音招呼来往行人',
+          label: {
+            en: '',
+            'zh-CN': '在龙沙区的郊区嫩江边的水声轻轻拍着岸',
+          },
+        },
+        {
+          prompt: '龙沙公园里不时传来麻将牌碰撞声，远处还夹着自行车铃和零散车流声',
+          label: {
+            en: '',
+            'zh-CN': '龙沙公园里不时传来麻将牌碰撞声远处还',
+          },
+        },
+      ],
+      signature: {
+        prompt: '在龙沙区的郊区，嫩江边的水声轻轻拍着岸，早市上小贩用东北口音招呼来往行人',
+        label: {
+          en: '',
+          'zh-CN': '在龙沙区的郊区嫩江边的水声轻轻拍着岸',
+        },
+      },
+    });
+    expect(result?.summary?.en).toBe('');
+    expect(result?.summary?.['zh-CN']).toContain(result?.cues?.[0]?.prompt ?? '');
+    expect(result?.summary?.['zh-CN']).toContain(result?.cues?.[1]?.prompt ?? '');
+    expect(result?.summary?.['zh-CN']).not.toContain('Analyze the Request');
+    expect(result?.summary?.['zh-CN']).not.toContain('raw:');
   });
 });

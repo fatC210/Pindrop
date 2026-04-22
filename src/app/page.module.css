@@ -363,14 +363,6 @@
   text-wrap: pretty;
 }
 
-.locationSound {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 13px;
-  line-height: 1.6;
-  text-wrap: pretty;
-}
-
 .locationStatus {
   flex: 0 0 auto;
   padding: 6px 10px;
@@ -430,94 +422,52 @@
   flex: 0 0 auto;
 }
 
-.progressRow {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.progressTrack {
-  position: relative;
-  overflow: hidden;
-  height: 9px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(209, 205, 199, 0.5), rgba(209, 205, 199, 0.9));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    inset 0 0 0 1px rgba(20, 20, 19, 0.05);
-}
-
-.progressFill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    var(--accent) 0%,
-    var(--light-signal-orange) 58%,
-    #f0b567 100%
-  );
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-  transition: width 0.24s ease;
-}
-
-.progressFillComplete {
-  position: absolute;
-  inset: 0;
-  width: auto !important;
-}
-
-.progressFillError {
-  background: linear-gradient(90deg, #ef4444, #f97316);
-}
-
-.progressValue {
-  font-size: 12px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-tertiary);
-}
-
 .playbackRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  min-height: 38px;
+  gap: 12px;
+  min-height: 42px;
 }
 
 .playbackProgress {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
   width: 100%;
-  height: 14px;
+  height: 42px;
+  padding: 0 18px;
   overflow: hidden;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(209, 205, 199, 0.45), rgba(209, 205, 199, 0.82));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.32)),
+    linear-gradient(180deg, rgba(219, 213, 205, 0.72), rgba(233, 227, 220, 0.44));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    inset 0 0 0 1px rgba(20, 20, 19, 0.05);
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 0 0 1px rgba(20, 20, 19, 0.06);
 }
 
 .playbackProgressFill {
   position: absolute;
-  inset: 2px auto 2px 2px;
-  width: 0;
+  inset: 8px 14px;
   border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    var(--accent) 0%,
-    var(--light-signal-orange) 60%,
-    #f0b567 100%
-  );
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
-    0 0 10px rgba(207, 69, 0, 0.2);
+  background:
+    linear-gradient(
+      90deg,
+      rgba(207, 69, 0, 0.06) 0%,
+      rgba(207, 69, 0, 0.12) 24%,
+      rgba(207, 69, 0, 0.18) 50%,
+      rgba(207, 69, 0, 0.1) 76%,
+      rgba(207, 69, 0, 0.04) 100%
+    );
+  opacity: 0.85;
+  transform: scaleX(1);
   transition:
-    width 0.28s ease,
     opacity 0.22s ease,
-    transform 0.22s ease;
+    transform 0.22s ease,
+    filter 0.22s ease;
 }
 
 .playbackProgressVisible .playbackProgressFill {
@@ -525,19 +475,77 @@
 }
 
 .playbackProgressActive .playbackProgressFill {
-  transform: translateX(0);
+  filter: saturate(1.02);
 }
 
 .playbackProgressPaused .playbackProgressFill {
-  animation: none;
+  opacity: 0.78;
+  filter: saturate(0.92);
 }
 
-.playbackTime {
-  min-width: 72px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-tertiary);
-  text-align: right;
+.playbackWaveBar {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 4px;
+  max-width: 6px;
+  height: 38%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(196, 82, 30, 0.72), rgba(207, 69, 0, 0.96));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 1px 6px rgba(207, 69, 0, 0.12);
+  opacity: 0.82;
+  transform-origin: center;
+}
+
+.playbackWaveBar:nth-child(2n + 2) {
+  height: 22%;
+}
+
+.playbackWaveBar:nth-child(3n + 2) {
+  height: 34%;
+}
+
+.playbackWaveBar:nth-child(4n + 1) {
+  height: 52%;
+}
+
+.playbackWaveBar:nth-child(5n + 3) {
+  height: 66%;
+}
+
+.playbackWaveBar:nth-child(6n + 4) {
+  height: 84%;
+}
+
+.playbackProgressVisible .playbackWaveBar {
+  opacity: 0.9;
+}
+
+.playbackProgressActive .playbackWaveBar {
+  animation: playbackWavePulse 1s ease-in-out infinite;
+}
+
+.playbackProgressPaused .playbackWaveBar {
+  animation: none;
+  opacity: 0.72;
+}
+
+.playbackWaveBar:nth-child(4n + 1) {
+  animation-delay: -0.12s;
+}
+
+.playbackWaveBar:nth-child(4n + 2) {
+  animation-delay: -0.32s;
+}
+
+.playbackWaveBar:nth-child(4n + 3) {
+  animation-delay: -0.52s;
+}
+
+.playbackWaveBar:nth-child(4n) {
+  animation-delay: -0.72s;
 }
 
 .playbackIconButton {
@@ -574,6 +582,19 @@
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
+}
+
+@keyframes playbackWavePulse {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+    opacity: 0.58;
+  }
+
+  50% {
+    transform: scaleY(1.18);
+    opacity: 1;
+  }
 }
 
 .locationActions {
@@ -761,12 +782,6 @@
   }
 
   .playbackRow {
-    justify-content: space-between;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .playbackTime {
-    grid-column: 1 / -1;
-    text-align: left;
+    gap: 10px;
   }
 }

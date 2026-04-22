@@ -57,12 +57,44 @@ const META_REASONING_PATTERNS = [
   /\bwhat would be characteristic sounds\b/i,
 ];
 
+const NON_NARRATIVE_LINE_PATTERNS = [
+  /^\s*(?:goal|format|language|length|content constraints|audible details|requirements?)\s*:/i,
+  /^\s*(?:location|context)\s*:/i,
+  /^\s*(?:draft\s*\d+|step\s*\d+)\b/i,
+  /\banalyze the request\b/i,
+  /\banalyze the location\b/i,
+  /\bbrainstorming soundscape details\b/i,
+  /\bdrafting the soundscape\b/i,
+  /\biterative process\b/i,
+  /\bknown for\b/i,
+  /\bprioritize\b/i,
+  /\bkeep it concise\b/i,
+  /\bnever output\b/i,
+  /\bdo not invent\b/i,
+];
+
 const SUMMARY_SCAFFOLDING_PATTERNS = [
   /^\s*cues?\s*:/i,
   /^\s*summary\s*:/i,
   /^\s*scene\s*\d+\s*:/i,
   /(?:^|\s)\d+\s*[\).:]\s+\S+/,
-  /(?:^|\n)\s*[-*•]\s+\S+/,
+  /(?:^|\n)\s*[-*]\s+\S+/,
+];
+
+const DEBUG_TAIL_PATTERNS = [
+  /"\s*(?:location|raw|choices|created|id|model|object|usage|prompt_token_ids)\s*:/i,
+  /\b(?:location|raw|choices|created|id|model|object|usage|prompt_token_ids)\s*:\s*[{[]/i,
+  /\[\[prototype\]\]/i,
+];
+
+const PREFERRED_NARRATIVE_SECTION_PATTERNS = [
+  /\bbrainstorm audible details\b/i,
+  /\baudible details\b/i,
+  /\blocal character\b/i,
+  /\bdrafting the soundscape\b/i,
+  /听觉细节/,
+  /可听细节/,
+  /本地特色/,
 ];
 
 function stripThinkingSections(content: string): string {
@@ -183,6 +215,55 @@ function createLocalizedText(value: string, locale: AppLocale): LocalizedCueLabe
       };
 }
 
+function normalizeComparableText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\s'"`~!@#$%^&*+=|\\/:;,.?()[\]{}<>-]+/g, '');
+}
+
+function isLikelyLocationEcho(
+  content: string,
+  context: LocationContext | undefined
+): boolean {
+  if (!context) {
+    return false;
+  }
+
+  const normalizedContent = normalizeComparableText(content);
+  if (!normalizedContent) {
+    return false;
+  }
+
+  const normalizedLocationParts = [
+    context.countryName,
+    context.administrativeRegionName,
+    context.regionName,
+    context.cityName,
+  ]
+    .map((part) => normalizeComparableText(part ?? ''))
+    .filter((part, index, parts) => part.length >= 3 && parts.indexOf(part) === index);
+
+  if (normalizedLocationParts.length === 0) {
+    return false;
+  }
+
+  const matchedLocationParts = normalizedLocationParts.filter((part) =>
+    normalizedContent.includes(part)
+  );
+
+  if (matchedLocationParts.length < Math.min(2, normalizedLocationParts.length)) {
+    return false;
+  }
+
+  let residual = normalizedContent;
+  for (const part of matchedLocationParts) {
+    residual = residual.split(part).join('');
+  }
+
+  return residual.length <= Math.max(10, Math.floor(normalizedContent.length * 0.28));
+}
+
 function isDisplayableSummary(content: string): boolean {
   const normalized = content.replace(/\s+/g, ' ').trim();
   if (!normalized) {
@@ -190,6 +271,180 @@ function isDisplayableSummary(content: string): boolean {
   }
 
   return !SUMMARY_SCAFFOLDING_PATTERNS.some((pattern) => pattern.test(content));
+}
+
+function trimDebugTail(content: string): string {
+  let firstMatchIndex = -1;
+
+  for (const pattern of DEBUG_TAIL_PATTERNS) {
+    const match = pattern.exec(content);
+    if (!match) {
+      continue;
+    }
+
+    if (firstMatchIndex === -1 || match.index < firstMatchIndex) {
+      firstMatchIndex = match.index;
+    }
+  }
+
+  const trimmed =
+    firstMatchIndex === -1 ? content.trim() : content.slice(0, firstMatchIndex).trim();
+
+  return trimmed.replace(/["'`]+$/, '').trim();
+}
+
+function stripLeadScaffolding(content: string): string {
+  return content
+    .trim()
+    .replace(/^\d+\s*[\).:]\s*/, '')
+    .replace(/^[-*]\s+/, '')
+    .replace(/^\*{1,2}\s*([^*]+?)\s*:\s*\*{1,2}\s*/, '')
+    .replace(/^(?:cues?|summary|scene\s*\d+)\s*[:：]\s*/i, '')
+    .replace(/^(?:final answer|answer|response)\s*[:：]\s*/i, '')
+    .replace(/^(?:draft\s*\d+(?:\s*\([^)]*\))?)\s*[:：]\s*/i, '')
+    .trim();
+}
+
+function matchesTargetScript(content: string, locale: AppLocale): boolean {
+  return locale === 'zh-CN' ? /[\u3400-\u9fff]/.test(content) : /[A-Za-z]/.test(content);
+}
+
+function collapseInlineEnumerations(content: string): string {
+  return content.replace(/(?:^|\s)\d+\s*[\).:]\s+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function extractNarrativeSummary(
+  content: string,
+  locale: AppLocale,
+  context?: LocationContext
+): string | null {
+  const cleaned = trimDebugTail(stripLeadScaffolding(content));
+  if (!cleaned) {
+    return null;
+  }
+
+  const normalizedCandidate = collapseInlineEnumerations(cleaned);
+  if (!normalizedCandidate) {
+    return null;
+  }
+
+  if (
+    META_REASONING_PATTERNS.some((pattern) => pattern.test(normalizedCandidate)) ||
+    NON_NARRATIVE_LINE_PATTERNS.some((pattern) => pattern.test(cleaned)) ||
+    !isDisplayableSummary(normalizedCandidate) ||
+    !matchesTargetScript(normalizedCandidate, locale)
+  ) {
+    return null;
+  }
+
+  const fragments = normalizedCandidate
+    .split(/(?<=[.!?;。！？；])\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 4 && matchesTargetScript(part, locale));
+
+  const completeFragments = fragments.filter((part) => /[.!?。！？]$/.test(part));
+  const selectedFragments = completeFragments.length > 0 ? completeFragments : fragments;
+  const normalizedSummary = selectedFragments
+    .join(locale === 'zh-CN' ? '' : ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalizedSummary || isLikelyLocationEcho(normalizedSummary, context)) {
+    return null;
+  }
+
+  return normalizedSummary || null;
+}
+
+function getMarkedSegments(content: string): string[] {
+  const markers = [
+    /(?:final answer|answer|response)\s*[:：]\s*([\s\S]+)/i,
+    /draft\s*\d+(?:\s*\([^)]*\))?\s*:\*?\s*([\s\S]+)/i,
+  ];
+
+  return markers
+    .map((pattern) => content.match(pattern)?.[1]?.trim() ?? '')
+    .filter((part, index, allParts) => part.length > 0 && allParts.indexOf(part) === index);
+}
+
+function isStructuredSectionHeader(line: string): boolean {
+  const normalizedLine = line.trim();
+  if (!normalizedLine) {
+    return false;
+  }
+
+  return /^\d+\s*[\).:]/.test(normalizedLine) || /^#{1,6}\s+/.test(normalizedLine);
+}
+
+function extractPreferredSectionCandidates(
+  content: string,
+  locale: AppLocale,
+  context?: LocationContext
+): string[] {
+  const lines = content.split('\n');
+  const candidates: string[] = [];
+  let inPreferredSection = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      continue;
+    }
+
+    if (isStructuredSectionHeader(line)) {
+      inPreferredSection = PREFERRED_NARRATIVE_SECTION_PATTERNS.some((pattern) =>
+        pattern.test(line)
+      );
+      continue;
+    }
+
+    if (!inPreferredSection) {
+      continue;
+    }
+
+    const candidate = extractNarrativeSummary(line, locale, context);
+    if (candidate) {
+      candidates.push(candidate);
+    }
+  }
+
+  return dedupeComparableText(candidates);
+}
+
+function dedupeComparableText(values: string[]): string[] {
+  return values.filter(
+    (value, index, allValues) =>
+      allValues.findIndex(
+        (existing) => normalizeComparableText(existing) === normalizeComparableText(value)
+      ) === index
+  );
+}
+
+function extractFreeformNarrativeBody(
+  content: string,
+  locale: AppLocale,
+  context?: LocationContext
+): string | null {
+  const preferredSectionCandidates = extractPreferredSectionCandidates(content, locale, context);
+  if (preferredSectionCandidates.length > 0) {
+    return preferredSectionCandidates.join(locale === 'zh-CN' ? '' : ' ');
+  }
+
+  const structuredCandidates = dedupeComparableText([
+    ...getMarkedSegments(content)
+      .map((candidate) => extractNarrativeSummary(candidate, locale, context))
+      .filter((candidate): candidate is string => Boolean(candidate)),
+    ...content
+      .split('\n')
+      .map((line) => extractNarrativeSummary(line, locale, context))
+      .filter((candidate): candidate is string => Boolean(candidate)),
+  ]);
+
+  if (structuredCandidates.length > 0) {
+    return structuredCandidates.join(locale === 'zh-CN' ? '' : ' ');
+  }
+
+  return extractNarrativeSummary(content, locale, context);
 }
 
 function normalizeCue(payload: RawCuePayload | undefined): NarrativeAnchorCue | null {
@@ -232,19 +487,26 @@ function normalizeCue(payload: RawCuePayload | undefined): NarrativeAnchorCue | 
 
 function normalizeSummary(
   summaryEn: string,
-  summaryZhCn: string
+  summaryZhCn: string,
+  context?: LocationContext
 ): LocalizedCueLabel | undefined {
-  if (!summaryEn && !summaryZhCn) {
+  const normalizedSummaryEn = extractNarrativeSummary(summaryEn, 'en', context) ?? '';
+  const normalizedSummaryZhCn = extractNarrativeSummary(summaryZhCn, 'zh-CN', context) ?? '';
+
+  if (!normalizedSummaryEn && !normalizedSummaryZhCn) {
     return undefined;
   }
 
   return {
-    en: summaryEn || summaryZhCn,
-    'zh-CN': summaryZhCn || summaryEn,
+    en: normalizedSummaryEn || normalizedSummaryZhCn,
+    'zh-CN': normalizedSummaryZhCn || normalizedSummaryEn,
   };
 }
 
-function normalizeAnchors(payload: RawAnchorPayload): SoundscapeNarrativeAnchors | null {
+function normalizeAnchors(
+  payload: RawAnchorPayload,
+  context?: LocationContext
+): SoundscapeNarrativeAnchors | null {
   const summaryEn = payload.summary_en?.trim() ?? payload.summary?.trim() ?? '';
   const summaryZhCn =
     payload.summary_zh_cn?.trim() ??
@@ -271,7 +533,7 @@ function normalizeAnchors(payload: RawAnchorPayload): SoundscapeNarrativeAnchors
   return {
     source: 'llm',
     confidence,
-    summary: normalizeSummary(summaryEn, summaryZhCn),
+    summary: normalizeSummary(summaryEn, summaryZhCn, context),
     cues,
     signature: signature ?? undefined,
     atmosphereTone: atmosphereTone || undefined,
@@ -281,46 +543,30 @@ function normalizeAnchors(payload: RawAnchorPayload): SoundscapeNarrativeAnchors
 
 function normalizeFreeformAnchors(
   content: string,
-  locale: AppLocale
+  locale: AppLocale,
+  context?: LocationContext
 ): SoundscapeNarrativeAnchors | null {
-  const trimmedContent = stripThinkingSections(content).trim();
+  const trimmedContent = stripCodeFence(stripThinkingSections(content)).trim();
   if (!trimmedContent) {
     return null;
   }
 
-  const paragraphCandidates = trimmedContent
-    .split(/\n\s*\n+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-  const selectedContent =
-    [...paragraphCandidates]
-      .reverse()
-      .find(
-        (part) => !META_REASONING_PATTERNS.some((pattern) => pattern.test(part))
-      ) ?? trimmedContent;
-  const withoutAnswerPrefix = selectedContent.replace(
-    /^(?:final answer|answer|response)\s*[:：-]\s*/i,
-    ''
-  );
-  const normalizedContent = withoutAnswerPrefix.replace(/\s+/g, ' ').trim();
-  if (!normalizedContent) {
+  if (parseJsonObject(trimmedContent)) {
     return null;
   }
 
-  if (
-    META_REASONING_PATTERNS.some((pattern) => pattern.test(normalizedContent)) ||
-    !isDisplayableSummary(selectedContent)
-  ) {
+  const resolvedSummary = extractFreeformNarrativeBody(trimmedContent, locale, context);
+  if (!resolvedSummary) {
     return null;
   }
 
-  const fragments = normalizedContent
+  const fragments = resolvedSummary
     .split(/[.!?;。！？；]/)
     .map((part) => part.trim())
     .filter((part) => part.length >= 4)
     .slice(0, 3);
 
-  const prompts = fragments.length > 0 ? fragments : [normalizedContent];
+  const prompts = fragments.length > 0 ? fragments : [resolvedSummary];
   const cues = prompts
     .map((prompt) => {
       const label = createCueLabel(prompt);
@@ -342,7 +588,7 @@ function normalizeFreeformAnchors(
   return {
     source: 'llm',
     confidence: DEFAULT_CONFIDENCE,
-    summary: createLocalizedText(normalizedContent, locale),
+    summary: createLocalizedText(resolvedSummary, locale),
     cues,
     signature: cues[0],
   };
@@ -357,19 +603,22 @@ function buildMessages(
   locale: AppLocale
 ): Array<{ role: 'system' | 'user'; content: string }> {
   const system = [
-    'Generate one short place-specific soundscape description.',
-    'Return only the description text with no JSON, no markdown, no code fences, and no extra explanation.',
+    'Generate one place-specific soundscape description paragraph for direct display in a task card.',
+    'Return only the final body text with no JSON, no markdown, no code fences, no labels, and no extra explanation.',
     `Write in ${getTargetLanguageLabel(locale)}.`,
-    'Use 1 to 3 complete sentences that can be shown directly in a task card.',
-    'Do not invent landmarks, festivals, narration, announcer intros, dialogue scripts, bullets, or numbered headings.',
+    'Write one compact paragraph with complete natural-language sentences.',
+    'Use concrete audible details so a listener can compare the paragraph with the generated audio.',
+    'Do not invent landmarks, festivals, narration, announcer intros, dialogue scripts, bullets, drafts, or numbered headings.',
+    'Do not reply with the place name, its translation, coordinates, or an administrative hierarchy by itself.',
   ].join(' ');
 
   const user = [
     'Requirements:',
+    '- Output only the final display paragraph, with no thinking process or analysis.',
     '- Describe concrete audible details with local character.',
-    '- Prioritize markets, rivers, parks, shops, water, and everyday routines when relevant.',
-    '- Keep it concise, natural, and complete.',
-    '- Never output strings like "conversation 1", "Cues:", numbered scene headings, or spoken-intro scripts.',
+    '- Prioritize markets, rivers, parks, shops, water, vehicles, and everyday routines when relevant.',
+    '- Keep it natural, specific, and complete.',
+    '- Never output strings like "conversation 1", "Cues:", "Summary:", numbered scene headings, or spoken-intro scripts.',
     '',
     `Location: ${buildLocationPrompt(context)}${buildContextPrompt(context)}`,
   ].join('\n');
@@ -433,10 +682,10 @@ export async function enrichSoundscapeNarrative(
 
   const parsed = parseJsonObject(content);
   if (!parsed) {
-    return normalizeFreeformAnchors(content, locale);
+    return normalizeFreeformAnchors(content, locale, context);
   }
 
-  return normalizeAnchors(parsed) ?? normalizeFreeformAnchors(content, locale);
+  return normalizeAnchors(parsed, context) ?? normalizeFreeformAnchors(content, locale, context);
 }
 
 export const __private__ = {

@@ -93,7 +93,6 @@ export interface SessionLocationEntry {
   isPlayable: boolean;
   playbackDurationSeconds?: number;
   sceneDescription?: string;
-  soundDescription?: string;
 }
 
 function textMatchesLocale(text: string, locale: AppLocale): boolean {
@@ -144,6 +143,32 @@ function coerceRecipe(recipe: unknown): SoundscapeRecipe | null {
 
 function getSoundscapeSizeBytes(blobs: AudioBlobMap): number {
   return Object.values(blobs).reduce((total, blob) => total + (blob?.size ?? 0), 0);
+}
+
+function stripSpeechLayers(blobs: AudioBlobMap): AudioBlobMap {
+  const sanitizedBlobs: AudioBlobMap = { ...blobs };
+  delete sanitizedBlobs.dialogue;
+  delete sanitizedBlobs.secondaryDialogue;
+  return sanitizedBlobs;
+}
+
+function buildLayerFailureMessage(
+  failureMessages: Partial<Record<LayerType, string>> | undefined,
+  fallbackMessage: string
+): string {
+  if (!failureMessages) {
+    return fallbackMessage;
+  }
+
+  const messages = Object.values(failureMessages).filter(
+    (message): message is string => typeof message === 'string' && message.trim().length > 0
+  );
+
+  if (messages.length === 0) {
+    return fallbackMessage;
+  }
+
+  return messages.join(' | ');
 }
 
 const CONTINUOUS_BED_LAYERS: readonly LayerType[] = ['ambient', 'atmosphere'];
@@ -488,7 +513,9 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         return;
       }
 
-      if (!(await hasUsableContinuousBed(cached.audioBlobs as AudioBlobMap))) {
+      const sanitizedBlobs = stripSpeechLayers(cached.audioBlobs as AudioBlobMap);
+
+      if (!(await hasUsableContinuousBed(sanitizedBlobs))) {
         await deleteCachedSoundscape(cacheKey);
         setCachedMarkers((previous) => previous.filter((entry) => entry.id !== cacheKey));
         void refreshCaches();
@@ -496,7 +523,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       }
 
       await enableAudio();
-      await play(recipe, cached.audioBlobs as AudioBlobMap);
+      await play(recipe, sanitizedBlobs);
       await recordSuccessfulPlayback(cacheKey, recipe);
     },
     [enableAudio, play, recordSuccessfulPlayback, refreshCaches]
@@ -547,12 +574,19 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         }
         const cachedRecipe = coerceRecipe(cached?.recipe);
         if (cached && cachedRecipe && cached.audioBlobs) {
-          if (!(await hasUsableContinuousBed(cached.audioBlobs as AudioBlobMap))) {
+          const sanitizedCachedBlobs = stripSpeechLayers(cached.audioBlobs as AudioBlobMap);
+          if (!(await hasUsableContinuousBed(sanitizedCachedBlobs))) {
             await deleteCachedSoundscape(cacheKey);
           } else {
-          setCachedMarkers((previous) => upsertCachedLocation(previous, cached));
-          removeGenerationJob(jobId);
-          return;
+            const sanitizedCachedEntry: CachedSoundscape = {
+              ...cached,
+              audioBlobs: sanitizedCachedBlobs,
+            };
+            setCachedMarkers((previous) =>
+              upsertCachedLocation(previous, sanitizedCachedEntry)
+            );
+            removeGenerationJob(jobId);
+            return;
           }
         }
 
@@ -582,14 +616,18 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         if (isGenerationJobCancelled(jobId)) {
           return;
         }
-        const blobs = generatedAudio.blobs;
+        const blobs = stripSpeechLayers(generatedAudio.blobs);
+        const layerFailureMessage = buildLayerFailureMessage(
+          generatedAudio.failureMessages,
+          messages.session.noAudioLayers
+        );
 
         if (Object.keys(blobs).length === 0) {
-          throw new Error(messages.session.noAudioLayers);
+          throw new Error(layerFailureMessage);
         }
 
         if (!(await hasUsableContinuousBed(blobs))) {
-          throw new Error(messages.session.noAudioLayers);
+          throw new Error(layerFailureMessage);
         }
 
         const nextCachedEntry: CachedSoundscape = {
@@ -639,6 +677,13 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           error instanceof Error && error.message.trim().length > 0
             ? error.message
             : fallbackMessage;
+
+        console.error('[PinDrop Error] Soundscape generation failed:', {
+          jobId,
+          coordinates: { lat, lng },
+          message: nextMessage,
+          error,
+        });
 
         updateGenerationJob(jobId, (job) => ({
           ...job,
@@ -733,27 +778,23 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     (
       locationContext: LocationContext | null,
       narrativeAnchors?: SoundscapeRecipe['narrativeAnchors'] | null
-    ): Pick<SessionLocationEntry, 'sceneDescription' | 'soundDescription'> => {
+    ): Pick<SessionLocationEntry, 'sceneDescription'> => {
       if (!locationContext) {
         return {
           sceneDescription: undefined,
-          soundDescription: undefined,
         };
       }
 
       const llmNarrativeAnchors =
         narrativeAnchors?.source === 'llm' ? narrativeAnchors : undefined;
       const llmSummary = llmNarrativeAnchors?.summary?.[locale]?.trim();
-      if (typeof llmSummary === 'string' && textMatchesLocale(llmSummary, locale) && llmSummary) {
-        return {
-          sceneDescription: llmSummary,
-          soundDescription: undefined,
-        };
-      }
+      const sceneDescription =
+        typeof llmSummary === 'string' && textMatchesLocale(llmSummary, locale)
+          ? llmSummary
+          : undefined;
 
       return {
-        sceneDescription: undefined,
-        soundDescription: undefined,
+        sceneDescription,
       };
     },
     [locale]

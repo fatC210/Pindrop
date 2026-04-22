@@ -302,7 +302,7 @@ describe('Home page history visibility', () => {
     expect(mapView.getAttribute('data-marker-ids')).toBe('ready-cache');
   });
 
-  test('hides the progress bar for ready entries and keeps an icon play button', () => {
+  test('hides progress text for ready entries and keeps a single-line waveform play row', () => {
     mockUseSoundscapeSession.mockReturnValue(
       createSessionResult({
         hasConfiguredApiKey: true,
@@ -340,7 +340,11 @@ describe('Home page history visibility', () => {
     const readyCard = screen.getByText('Paris, France').closest('article');
     expect(readyCard).not.toBeNull();
     expect(within(readyCard as HTMLElement).queryByText('100%')).toBeNull();
-    expect(within(readyCard as HTMLElement).getByText('0:00 / 0:22')).not.toBeNull();
+    expect(within(readyCard as HTMLElement).queryByText('0:00 / 0:22')).toBeNull();
+    expect(within(readyCard as HTMLElement).getByTestId('playback-progress-ready-cache')).toHaveAttribute(
+      'data-state',
+      'idle'
+    );
     expect(within(readyCard as HTMLElement).getByRole('button', { name: 'Play' })).not.toBeNull();
   });
 
@@ -435,7 +439,7 @@ describe('Home page history visibility', () => {
     );
   });
 
-  test('shows a playback progress bar and a pause button while a location is playing', () => {
+  test('shows an animated waveform row and a pause button while a location is playing', () => {
     const pausePlayback = vi.fn();
 
     mockUseSoundscapeSession.mockReturnValue(
@@ -484,10 +488,12 @@ describe('Home page history visibility', () => {
     renderHome();
 
     expect(screen.getByTestId('playback-progress-ready-cache')).not.toBeNull();
-    expect(screen.getByTestId('playback-progress-fill-ready-cache')).toHaveStyle({
-      width: '30%',
-    });
-    expect(screen.getByText('0:27 / 1:30')).not.toBeNull();
+    expect(screen.getByTestId('playback-progress-ready-cache')).toHaveAttribute(
+      'data-state',
+      'playing'
+    );
+    expect(screen.queryByText('0:27 / 1:30')).toBeNull();
+    expect(screen.getByTestId('playback-progress-fill-ready-cache')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
 
     expect(pausePlayback).toHaveBeenCalledTimes(1);

@@ -123,7 +123,7 @@ export function buildAmbientLayer(
     `Regional foundation: ${basePrompt}.`,
     `Natural environment: ${environmentDetails.join(', ')}.`,
     specificityInstruction,
-    'Keep perspective realistic and layered. No detached narrator, scene-setting monologue, or spoken introduction. Avoid cinematic stingers, random novelty effects, exaggerated animals that do not belong here, and synthetic textures.',
+    'Keep perspective realistic and layered. No detached narrator, scene-setting monologue, clean spoken line, recited description, sung lyrics, or spoken introduction. Avoid cinematic stingers, random novelty effects, exaggerated animals that do not belong here, and synthetic textures.',
   ].join(' ');
 
   const volume = clamp(0.7 * interpolation.appliedParams.activity, 0, 1);
@@ -152,7 +152,7 @@ export function buildSignatureLayer(
   const prompt = [
     `Capture one brief recognisable everyday moment from ${placeDescriptor}: ${detailPrompt}.`,
     specificityInstruction,
-    'Render only the diegetic moment itself with no narrator, spoken introduction, or theatrical sting. It should feel locally grounded, naturally recorded, and never comedic.',
+    'Render only the diegetic moment itself with no narrator, clean spoken phrase, recited text, sung lyric, spoken introduction, or theatrical sting. It should feel locally grounded, naturally recorded, and never comedic.',
   ].join(' ');
 
   const intervalSeconds = clamp(90 - (60 * activity), 30, 90);
@@ -242,8 +242,8 @@ export function buildAtmosphereLayer(
     `Texture: ${template.atmosphereStyle.replace('{culture}', culturalTone)}.`,
     `Mood: ${timeMood}.`,
     'Organic and restrained, almost hidden under the ambience, with no dominant melody and no dramatic intro swell.',
-    'Natural embedded human voices are allowed when they belong to the place, such as market calls, street sellers, distant crowd responses, or brief non-lyrical vocal textures, but never as a clean lead vocal.',
-    'Do not open with a spoken monologue, narration, counting cue, announcer voice, or trailer-style spoken intro before the music bed settles in.',
+    'Natural embedded human texture is allowed when it belongs to the place, such as distant crowd wash or non-verbal reactions, but no intelligible foreground speech, no recited words, and never as a clean lead vocal.',
+    'Do not open with a spoken monologue, narration, counting cue, announcer voice, sung topline, or trailer-style spoken intro before the music bed settles in.',
   ].join(' ');
   const volume = clamp(0.5 * interpolation.appliedParams.music, 0, 1);
 

@@ -609,6 +609,43 @@ describe('useSoundscapeSession deletion flow', () => {
     );
   });
 
+  test('surfaces detailed ElevenLabs layer failures instead of a generic no-audio error', async () => {
+    mockResolveLocation.mockResolvedValue(createLocationContext());
+    mockGenerateSoundscapeAudio.mockResolvedValue({
+      blobs: {},
+      failedLayers: ['ambient', 'atmosphere'],
+      failureMessages: {
+        ambient: 'Ambient generation failed: ElevenLabs request failed (429): quota exceeded',
+        atmosphere:
+          'Atmosphere generation failed: ElevenLabs request failed (403): plan upgrade required',
+      },
+    });
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await act(async () => {
+      await result.current.handleCoordinateSelect(48.8566, 2.3522);
+    });
+
+    await waitFor(() => {
+      expect(result.current.locationEntries[0]?.status).toBe('error');
+    });
+
+    expect(result.current.locationEntries[0]?.errorMessage).toBe(
+      'Ambient generation failed: ElevenLabs request failed (429): quota exceeded | Atmosphere generation failed: ElevenLabs request failed (403): plan upgrade required'
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[PinDrop Error] Soundscape generation failed:',
+      expect.objectContaining({
+        message:
+          'Ambient generation failed: ElevenLabs request failed (429): quota exceeded | Atmosphere generation failed: ElevenLabs request failed (403): plan upgrade required',
+      })
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
   test('does not expose cached entries that only contain short non-bed fragments', async () => {
     const invalidCachedEntry = {
       ...createCachedSoundscape(),
@@ -643,7 +680,48 @@ describe('useSoundscapeSession deletion flow', () => {
       'A riverside bookseller is setting out paperbacks'
     );
     expect(result.current.locationEntries[0]?.sceneDescription).not.toBe('soft accordion');
-    expect(result.current.locationEntries[0]?.soundDescription).toBeUndefined();
+  });
+
+  test('strips cached dialogue blobs before playback so old spoken layers do not play', async () => {
+    const cachedEntry = {
+      ...createCachedSoundscape(),
+      audioBlobs: {
+        ambient: new Blob(['ambient']),
+        dialogue: new Blob(['spoken']),
+        secondaryDialogue: new Blob(['spoken-2']),
+        atmosphere: new Blob(['music']),
+      },
+    };
+    const play = vi.fn().mockResolvedValue(undefined);
+    mockGetCachedMarkers.mockResolvedValue([cachedEntry]);
+    mockGetCachedSoundscape.mockResolvedValue(cachedEntry);
+    mockUseAudioPlayer.mockReturnValue(
+      createAudioPlayerState({
+        play,
+      })
+    );
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    await act(async () => {
+      await result.current.playLocation('ready-cache');
+    });
+
+    expect(play).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'ready-cache' }),
+      expect.objectContaining({
+        ambient: expect.any(Blob),
+        atmosphere: expect.any(Blob),
+      })
+    );
+
+    const passedBlobs = play.mock.calls[0]?.[1] as Record<string, Blob | undefined>;
+    expect(passedBlobs.dialogue).toBeUndefined();
+    expect(passedBlobs.secondaryDialogue).toBeUndefined();
   });
 
   test('shows the LLM-generated description while a location is still rendering', async () => {
@@ -663,7 +741,6 @@ describe('useSoundscapeSession deletion flow', () => {
       expect(result.current.locationEntries[0]?.sceneDescription).toContain(
         'A market stall is rolling up its shutter'
       );
-      expect(result.current.locationEntries[0]?.soundDescription).toBeUndefined();
     });
 
     await act(async () => {
@@ -689,7 +766,6 @@ describe('useSoundscapeSession deletion flow', () => {
     expect(result.current.locationEntries[0]?.sceneDescription).toContain(
       '\u6cb3\u5cb8\u65e7\u4e66\u644a'
     );
-    expect(result.current.locationEntries[0]?.soundDescription).toBeUndefined();
   });
 
   test('does not show a description when cached LLM text does not match the interface language', async () => {

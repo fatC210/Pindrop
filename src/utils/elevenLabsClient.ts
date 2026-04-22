@@ -1,7 +1,6 @@
 import type {
   AmbientLayer,
   AtmosphereLayer,
-  DialogueLayer,
   SignatureLayer,
   SoundscapeRecipe,
 } from '@/types/soundscapeRecipe';
@@ -14,18 +13,11 @@ export const MAX_SOUND_EFFECT_PROMPT_LENGTH = 450;
 const PREVIEW_DURATION_SECONDS = 4;
 const ELEVENLABS_PROXY_API_KEY_HEADER = 'x-elevenlabs-api-key';
 
-interface ElevenLabsVoice {
-  voice_id?: string;
-  labels?: Record<string, string>;
-  verified_languages?: Array<{ language?: string; model_id?: string }>;
-}
-
 export interface GeneratedLayerAudio {
   blobs: AudioBlobMap;
   failedLayers: LayerType[];
+  failureMessages: Partial<Record<LayerType, string>>;
 }
-
-let voicesPromise: Promise<ElevenLabsVoice[]> | null = null;
 
 function createAuthorizedHeaders(contentType?: string): Headers {
   const apiKeyHeader = getApiKeyHeader();
@@ -130,70 +122,30 @@ async function fetchBinaryWithFallback(
   throw lastError ?? new Error('ElevenLabs request failed');
 }
 
-async function loadVoices(): Promise<ElevenLabsVoice[]> {
-  if (!voicesPromise) {
-    voicesPromise = fetchProxy('voices', {
-      method: 'GET',
-      headers: createAuthorizedHeaders(),
-    })
-      .then(async (response) => {
-        const data = (await response.json()) as { voices?: ElevenLabsVoice[] };
-        return data.voices ?? [];
-      })
-      .catch((error) => {
-        voicesPromise = null;
-        throw error;
-      });
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
   }
 
-  return voicesPromise;
+  return String(error);
 }
 
-function matchesLanguage(
-  voice: ElevenLabsVoice,
-  language: string
-): boolean {
-  const shortLanguage = language.split('-')[0]?.toLowerCase();
-  const labelValues = Object.values(voice.labels ?? {}).map((value) =>
-    value.toLowerCase()
-  );
-
-  if (labelValues.some((value) => value.includes(shortLanguage))) {
-    return true;
+function formatLayerFailureMessage(
+  layerType: LayerType,
+  message: string
+): string {
+  switch (layerType) {
+    case 'ambient':
+      return `Ambient generation failed: ${message}`;
+    case 'signature':
+      return `Signature generation failed: ${message}`;
+    case 'dialogue':
+      return `Dialogue generation failed: ${message}`;
+    case 'secondaryDialogue':
+      return `Secondary dialogue generation failed: ${message}`;
+    case 'atmosphere':
+      return `Atmosphere generation failed: ${message}`;
   }
-
-  return (voice.verified_languages ?? []).some((entry) =>
-    entry.language?.toLowerCase().startsWith(shortLanguage)
-  );
-}
-
-async function resolveVoiceId(
-  requestedVoiceId: string,
-  language: string
-): Promise<string> {
-  const voices = await loadVoices();
-  if (voices.length === 0) {
-    throw new Error('No ElevenLabs voices available for this API key');
-  }
-
-  const requested = voices.find((voice) => voice.voice_id === requestedVoiceId);
-  if (requested?.voice_id) {
-    return requested.voice_id;
-  }
-
-  const matchedLanguageVoice = voices.find(
-    (voice) => voice.voice_id && matchesLanguage(voice, language)
-  );
-  if (matchedLanguageVoice?.voice_id) {
-    return matchedLanguageVoice.voice_id;
-  }
-
-  const firstVoice = voices.find((voice) => typeof voice.voice_id === 'string');
-  if (!firstVoice?.voice_id) {
-    throw new Error('No valid ElevenLabs voice ids returned by the API');
-  }
-
-  return firstVoice.voice_id;
 }
 
 function normalizeSoundEffectPrompt(prompt: string): string {
@@ -227,25 +179,6 @@ function normalizeSoundEffectPrompt(prompt: string): string {
   }
 
   return truncatedPrompt.trimEnd();
-}
-
-async function generateDialogueBlob(layer: DialogueLayer): Promise<Blob> {
-  const voiceId = await resolveVoiceId(layer.voiceId, layer.language);
-  const payload = {
-    text: layer.text.trim() || ' ',
-    model_id:
-      layer.model === 'eleven_v3' ? 'eleven_multilingual_v2' : layer.model,
-    language_code: layer.language,
-  };
-
-  return fetchBinaryWithFallback(
-    [`text-to-speech/${voiceId}`, `text-to-speech/${voiceId}/stream`],
-    {
-      method: 'POST',
-      headers: createAuthorizedHeaders('application/json'),
-      body: JSON.stringify(payload),
-    }
-  );
 }
 
 async function generateSoundEffectBlob(
@@ -322,20 +255,6 @@ export async function generateSoundscapeAudio(
     });
   }
 
-  if (recipe.layers.dialogue.text.trim()) {
-    taskDefinitions.push({
-      layerType: 'dialogue',
-      promise: generateDialogueBlob(recipe.layers.dialogue),
-    });
-  }
-
-  if (recipe.layers.secondaryDialogue.text.trim()) {
-    taskDefinitions.push({
-      layerType: 'secondaryDialogue',
-      promise: generateDialogueBlob(recipe.layers.secondaryDialogue),
-    });
-  }
-
   if (recipe.layers.atmosphere.prompt.trim()) {
     taskDefinitions.push({
       layerType: 'atmosphere',
@@ -351,6 +270,7 @@ export async function generateSoundscapeAudio(
   );
   const blobs: AudioBlobMap = {};
   const failedLayers: LayerType[] = [];
+  const failureMessages: Partial<Record<LayerType, string>> = {};
 
   settledResults.forEach((result, index) => {
     const { layerType } = taskDefinitions[index];
@@ -360,9 +280,13 @@ export async function generateSoundscapeAudio(
     }
 
     failedLayers.push(layerType);
+    failureMessages[layerType] = formatLayerFailureMessage(
+      layerType,
+      getErrorMessage(result.reason)
+    );
   });
 
-  const expectedLayers: LayerType[] = ['ambient', 'signature', 'dialogue', 'secondaryDialogue', 'atmosphere'];
+  const expectedLayers: LayerType[] = ['ambient', 'signature', 'atmosphere'];
   for (const layerType of expectedLayers) {
     if (
       !(layerType in blobs) &&
@@ -373,7 +297,20 @@ export async function generateSoundscapeAudio(
     }
   }
 
-  return { blobs, failedLayers };
+  if (failedLayers.length > 0) {
+    console.error('[PinDrop Error] ElevenLabs layer generation failed:', {
+      recipeId: recipe.id,
+      location: {
+        cityName: recipe.location.cityName,
+        regionName: recipe.location.regionName ?? null,
+        countryName: recipe.location.countryName,
+      },
+      failedLayers,
+      failureMessages,
+    });
+  }
+
+  return { blobs, failedLayers, failureMessages };
 }
 
 function shouldRequestLayer(recipe: SoundscapeRecipe, layerType: LayerType): boolean {
@@ -383,9 +320,8 @@ function shouldRequestLayer(recipe: SoundscapeRecipe, layerType: LayerType): boo
     case 'signature':
       return recipe.layers.signature.prompt.trim().length > 0;
     case 'dialogue':
-      return recipe.layers.dialogue.text.trim().length > 0;
     case 'secondaryDialogue':
-      return recipe.layers.secondaryDialogue.text.trim().length > 0;
+      return false;
     case 'atmosphere':
       return recipe.layers.atmosphere.prompt.trim().length > 0;
   }

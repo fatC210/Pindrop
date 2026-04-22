@@ -120,7 +120,7 @@ describe('elevenLabsClient', () => {
 
   test('routes ambient preview requests through the local ElevenLabs proxy', async () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValue(createOkResponse());
+    fetchMock.mockImplementation(async () => createOkResponse());
 
     await generateAmbientPreviewAudio('gentle wind in pine trees');
 
@@ -139,18 +139,7 @@ describe('elevenLabsClient', () => {
 
   test('uses the current music endpoint and payload shape for atmosphere generation', async () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(
-        Response.json({
-          voices: [
-            {
-              voice_id: 'voice-1',
-              verified_languages: [{ language: 'fr' }],
-            },
-          ],
-        })
-      )
-      .mockResolvedValue(createOkResponse());
+    fetchMock.mockImplementation(async () => createOkResponse());
 
     await generateSoundscapeAudio(createRecipe());
 
@@ -174,6 +163,79 @@ describe('elevenLabsClient', () => {
     });
   });
 
+  test('never sends text-to-speech requests even when dialogue layers contain text', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async () => createOkResponse());
+
+    const result = await generateSoundscapeAudio(createRecipe());
+
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/elevenlabs/text-to-speech/'),
+      expect.anything()
+    );
+    expect(result.blobs.dialogue).toBeUndefined();
+    expect(result.blobs.secondaryDialogue).toBeUndefined();
+    expect(result.failedLayers).not.toContain('dialogue');
+    expect(result.failedLayers).not.toContain('secondaryDialogue');
+  });
+
+  test('preserves per-layer ElevenLabs failure messages for the caller', async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        Response.json(
+          { detail: 'Quota exceeded for sound generation.' },
+          {
+            status: 429,
+            headers: {
+              'content-type': 'application/json',
+            },
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          { detail: 'Music generation is not enabled for this account.' },
+          {
+            status: 403,
+            headers: {
+              'content-type': 'application/json',
+            },
+          }
+        )
+      )
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await generateSoundscapeAudio(
+      createRecipe({
+        signature: {
+          type: 'sfx',
+          prompt: '',
+          volume: 0.5,
+          loop: false,
+          intervalSeconds: 45,
+        },
+      })
+    );
+
+    expect(result.failedLayers).toEqual(expect.arrayContaining(['ambient', 'atmosphere']));
+    expect(result.failureMessages.ambient).toContain('Ambient generation failed');
+    expect(result.failureMessages.ambient).toContain('Quota exceeded for sound generation.');
+    expect(result.failureMessages.atmosphere).toContain('Atmosphere generation failed');
+    expect(result.failureMessages.atmosphere).toContain(
+      'Music generation is not enabled for this account.'
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[PinDrop Error] ElevenLabs layer generation failed:',
+      expect.objectContaining({
+        recipeId: 'recipe-1',
+        failedLayers: expect.arrayContaining(['ambient', 'atmosphere']),
+      })
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
   test('throws a clear error when the API key is missing', async () => {
     mockGetApiKeyHeader.mockReturnValue({});
 
@@ -184,7 +246,7 @@ describe('elevenLabsClient', () => {
 
   test('trims long sound-effect prompts before calling the proxy', async () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValue(createOkResponse());
+    fetchMock.mockImplementation(async () => createOkResponse());
 
     const overlongPrompt = Array.from({ length: 18 }, (_, index) =>
       `Sentence ${index + 1} describing one grounded local sound detail with realistic texture.`

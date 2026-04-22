@@ -21,6 +21,7 @@ const MapView = dynamic(
   () => import('@/components/map/MapView').then((mod) => ({ default: mod.MapView })),
   { ssr: false }
 );
+const PLAYBACK_WAVE_SEGMENTS = Array.from({ length: 18 }, (_, index) => index);
 
 function joinLocationParts(parts: Array<string | undefined>, locale: AppLocale): string {
   const uniqueParts: string[] = [];
@@ -68,14 +69,6 @@ function formatLocationTitle(
   return joinLocationParts(orderedParts, locale);
 }
 
-function formatPlaybackTime(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
-
 export default function Home(): React.JSX.Element {
   const { locale, messages, setLocale } = useI18n();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -103,7 +96,6 @@ export default function Home(): React.JSX.Element {
   const locatingLabel = locale === 'zh-CN' ? '定位中' : 'Locating';
   const generatingLabel = locale === 'zh-CN' ? '生成中' : 'Generating';
   const failedLabel = locale === 'zh-CN' ? '生成失败' : 'Failed';
-  const pendingLocationLabel = locale === 'zh-CN' ? '待识别地点' : 'Pending location';
 
   const emptyGeneratedPlacesTitle = locale === 'zh-CN' ? '还没有生成任务' : 'No places yet';
 
@@ -411,26 +403,11 @@ export default function Home(): React.JSX.Element {
                       : entry.status === 'loading'
                         ? generatingLabel
                         : entry.statusLabel;
-                const clampedProgress = Math.max(0, Math.min(100, entry.progress));
-                const isProgressComplete = clampedProgress >= 100;
                 const playbackButtonLabel = isPlayingLocation
                   ? messages.home.actions.pause
                   : isPausedLocation
                     ? messages.home.actions.resume
                     : messages.home.actions.play;
-                const playbackProgressPercent = isActiveLocation
-                  ? Math.max(0, Math.min(100, session.playbackState.playbackProgress * 100))
-                  : 0;
-                const playbackPositionLabel = isActiveLocation
-                  ? formatPlaybackTime(session.playbackState.playbackPositionSeconds)
-                  : '0:00';
-                const playbackDurationSeconds = isActiveLocation
-                  ? session.playbackState.playbackDurationSeconds
-                  : entry.playbackDurationSeconds ?? 0;
-                const playbackDurationLabel =
-                  playbackDurationSeconds > 0
-                    ? formatPlaybackTime(playbackDurationSeconds)
-                    : null;
 
                 return (
                   <article
@@ -452,12 +429,9 @@ export default function Home(): React.JSX.Element {
                     <div className={styles.locationCardHeader}>
                       <div className={styles.locationTitleGroup}>
                         <h2 className={styles.locationTitle}>{title}</h2>
-                        <p className={styles.locationMeta}>
-                          {entry.sceneDescription ??
-                            (entry.timeSlot
-                              ? messages.enums.timeSlots[entry.timeSlot]
-                              : pendingLocationLabel)}
-                        </p>
+                        {entry.sceneDescription ? (
+                          <p className={styles.locationMeta}>{entry.sceneDescription}</p>
+                        ) : null}
                       </div>
 
                       <div className={styles.locationHeaderActions}>
@@ -497,44 +471,8 @@ export default function Home(): React.JSX.Element {
                       </div>
                     </div>
 
-                    {entry.soundDescription ? (
-                      <p className={styles.locationSound}>{entry.soundDescription}</p>
-                    ) : null}
-
-                    {!isReadyEntry ? (
-                      <div className={styles.progressRow}>
-                        <div className={styles.progressTrack}>
-                          <span
-                            className={`${styles.progressFill}${
-                              entry.status === 'error' ? ` ${styles.progressFillError}` : ''
-                            }${isProgressComplete ? ` ${styles.progressFillComplete}` : ''}`}
-                            style={{ width: `${clampedProgress}%` }}
-                          />
-                        </div>
-                        <span className={styles.progressValue}>{clampedProgress}%</span>
-                      </div>
-                    ) : (
+                    {isReadyEntry ? (
                       <div className={styles.playbackRow}>
-                        <div
-                          className={`${styles.playbackProgress}${
-                            isActiveLocation ? ` ${styles.playbackProgressVisible}` : ''
-                          }${isPlayingLocation ? ` ${styles.playbackProgressActive}` : ''}${
-                            isPausedLocation ? ` ${styles.playbackProgressPaused}` : ''
-                          }`}
-                          aria-hidden="true"
-                          data-testid={`playback-progress-${entry.id}`}
-                        >
-                          <span
-                            className={styles.playbackProgressFill}
-                            data-testid={`playback-progress-fill-${entry.id}`}
-                            style={{ width: `${playbackProgressPercent}%` }}
-                          />
-                        </div>
-                        {playbackDurationLabel ? (
-                          <span className={styles.playbackTime}>
-                            {playbackPositionLabel} / {playbackDurationLabel}
-                          </span>
-                        ) : null}
                         <button
                           type="button"
                           className={styles.playbackIconButton}
@@ -585,8 +523,34 @@ export default function Home(): React.JSX.Element {
                             </svg>
                           )}
                         </button>
+                        <div
+                          className={`${styles.playbackProgress}${
+                            isActiveLocation ? ` ${styles.playbackProgressVisible}` : ''
+                          }${isPlayingLocation ? ` ${styles.playbackProgressActive}` : ''}${
+                            isPausedLocation ? ` ${styles.playbackProgressPaused}` : ''
+                          }`}
+                          aria-hidden="true"
+                          data-state={
+                            isPlayingLocation
+                              ? 'playing'
+                              : isPausedLocation
+                                ? 'paused'
+                                : isActiveLocation
+                                  ? 'active'
+                                  : 'idle'
+                          }
+                          data-testid={`playback-progress-${entry.id}`}
+                        >
+                          <span
+                            className={styles.playbackProgressFill}
+                            data-testid={`playback-progress-fill-${entry.id}`}
+                          />
+                          {PLAYBACK_WAVE_SEGMENTS.map((segment) => (
+                            <span key={segment} className={styles.playbackWaveBar} />
+                          ))}
+                        </div>
                       </div>
-                    )}
+                    ) : null}
 
                     {!isReadyEntry ? (
                       <div className={styles.locationActions}>

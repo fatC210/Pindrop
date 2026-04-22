@@ -399,10 +399,22 @@ describe('generateRecipe', () => {
   it('atmosphere prompts should allow local human texture while forbidding spoken intros', () => {
     const recipe = generateRecipe(PARIS_CONTEXT);
 
-    expect(recipe.layers.atmosphere.prompt).toContain('Natural embedded human voices are allowed');
-    expect(recipe.layers.atmosphere.prompt).toContain('never as a clean lead vocal');
+    expect(recipe.layers.atmosphere.prompt).toContain('Natural embedded human texture is allowed');
+    expect(recipe.layers.atmosphere.prompt).toContain('no intelligible foreground speech');
     expect(recipe.layers.atmosphere.prompt).toContain('Do not open with a spoken monologue');
+    expect(recipe.layers.atmosphere.prompt).toContain('sung topline');
     expect(recipe.layers.atmosphere.prompt).toContain('no dramatic intro swell');
+  });
+
+  it('ambient and signature prompts should explicitly forbid recited or sung text', () => {
+    const recipe = generateRecipe(PARIS_CONTEXT);
+
+    expect(recipe.layers.ambient.prompt).toContain('No detached narrator');
+    expect(recipe.layers.ambient.prompt).toContain('recited description');
+    expect(recipe.layers.ambient.prompt).toContain('sung lyrics');
+    expect(recipe.layers.signature.prompt).toContain('clean spoken phrase');
+    expect(recipe.layers.signature.prompt).toContain('recited text');
+    expect(recipe.layers.signature.prompt).toContain('sung lyric');
   });
 
   // --- 无对话区域静默规则 ---
