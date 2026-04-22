@@ -35,6 +35,9 @@ function joinLocationParts(parts: Array<string | undefined>, locale: AppLocale):
     uniqueParts.push(normalized);
   }
 
+  const separator = locale === 'zh-CN' ? '\uFF0C' : ', ';
+  return uniqueParts.join(separator);
+
   return uniqueParts.join(locale === 'zh-CN' ? '，' : ', ');
 }
 
@@ -48,15 +51,16 @@ function formatLocationTitle(
 ): string {
   const administrativeRegionName =
     localizedLabel?.administrativeRegionName ?? entry.administrativeRegionName;
-  const regionName = localizedLabel?.regionName ?? entry.regionName;
   const cityName = localizedLabel?.cityName ?? entry.cityName;
   const countryName = localizedLabel?.countryName ?? entry.countryName;
   const orderedParts =
     locale === 'zh-CN'
-      ? [countryName, administrativeRegionName, cityName, regionName]
-      : [regionName, cityName, administrativeRegionName, countryName];
+      ? [countryName, administrativeRegionName, cityName]
+      : [cityName, administrativeRegionName, countryName];
 
-  if (locale === 'zh-CN') {
+  return joinLocationParts(orderedParts, locale);
+
+  if (false) {
     return Array.from(
       new Set(
         orderedParts
@@ -387,6 +391,7 @@ export default function Home(): React.JSX.Element {
                     session.playbackState.state === 'paused');
                 const isMapFocusedLocation = mapFocusedLocationId === entry.id;
                 const isReadyEntry = entry.status === 'ready';
+                const isLoadingEntry = entry.status === 'loading';
                 const isPlayingLocation =
                   isActiveLocation && session.playbackState.state === 'playing';
                 const isPausedLocation =
@@ -398,9 +403,9 @@ export default function Home(): React.JSX.Element {
                 const statusLabel =
                   entry.status === 'error'
                     ? failedLabel
-                    : entry.status === 'loading' && entry.progress < 30
+                    : isLoadingEntry && entry.progress < 30
                       ? locatingLabel
-                      : entry.status === 'loading'
+                      : isLoadingEntry
                         ? generatingLabel
                         : entry.statusLabel;
                 const playbackButtonLabel = isPlayingLocation
@@ -408,6 +413,13 @@ export default function Home(): React.JSX.Element {
                   : isPausedLocation
                     ? messages.home.actions.resume
                     : messages.home.actions.play;
+                const loadingIndicator = (
+                  <span className={styles.locationLoadingIndicator} aria-hidden="true">
+                    <span className={styles.locationLoadingDot} />
+                    <span className={styles.locationLoadingDot} />
+                    <span className={styles.locationLoadingDot} />
+                  </span>
+                );
 
                 return (
                   <article
@@ -426,12 +438,13 @@ export default function Home(): React.JSX.Element {
                     }${isMapFocusedLocation ? ` ${styles.locationCardMapFocused}` : ''}`}
                     onClick={() => handleLocationFocus(entry)}
                   >
-                    <div className={styles.locationCardHeader}>
+                    <div
+                      className={`${styles.locationCardHeader}${
+                        entry.sceneDescription ? '' : ` ${styles.locationCardHeaderCentered}`
+                      }`}
+                    >
                       <div className={styles.locationTitleGroup}>
                         <h2 className={styles.locationTitle}>{title}</h2>
-                        {entry.sceneDescription ? (
-                          <p className={styles.locationMeta}>{entry.sceneDescription}</p>
-                        ) : null}
                       </div>
 
                       <div className={styles.locationHeaderActions}>
@@ -443,8 +456,11 @@ export default function Home(): React.JSX.Element {
                                 ? ` ${styles.locationStatusReady}`
                                 : ` ${styles.locationStatusLoading}`
                           }`}
+                          role={isLoadingEntry ? 'status' : undefined}
+                          aria-label={isLoadingEntry ? statusLabel : undefined}
+                          aria-live={isLoadingEntry ? 'polite' : undefined}
                         >
-                          {statusLabel}
+                          {isLoadingEntry ? loadingIndicator : statusLabel}
                         </span>
                         <button
                           type="button"
@@ -470,6 +486,10 @@ export default function Home(): React.JSX.Element {
                         </button>
                       </div>
                     </div>
+
+                    {entry.sceneDescription ? (
+                      <p className={styles.locationMeta}>{entry.sceneDescription}</p>
+                    ) : null}
 
                     {isReadyEntry ? (
                       <div className={styles.playbackRow}>
@@ -552,7 +572,7 @@ export default function Home(): React.JSX.Element {
                       </div>
                     ) : null}
 
-                    {!isReadyEntry ? (
+                    {!isReadyEntry && !isLoadingEntry ? (
                       <div className={styles.locationActions}>
                         <button
                           type="button"

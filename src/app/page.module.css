@@ -336,6 +336,10 @@
   gap: 12px;
 }
 
+.locationCardHeaderCentered {
+  align-items: center;
+}
+
 .locationHeaderActions {
   flex: 0 0 auto;
   display: inline-flex;
@@ -356,11 +360,13 @@
 }
 
 .locationMeta {
-  margin: 4px 0 0;
+  margin: 0;
+  width: 100%;
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.55;
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .locationStatus {
@@ -375,6 +381,32 @@
 .locationStatusLoading {
   background: rgba(37, 99, 235, 0.1);
   color: #1d4ed8;
+}
+
+.locationLoadingIndicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 32px;
+  min-height: 12px;
+}
+
+.locationLoadingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.28;
+  animation: locationLoadingPulse 0.9s ease-in-out infinite;
+}
+
+.locationLoadingDot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.locationLoadingDot:nth-child(3) {
+  animation-delay: 0.3s;
 }
 
 .locationStatusReady {
@@ -593,6 +625,20 @@
 
   50% {
     transform: scaleY(1.18);
+    opacity: 1;
+  }
+}
+
+@keyframes locationLoadingPulse {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.72);
+    opacity: 0.28;
+  }
+
+  40% {
+    transform: scale(1);
     opacity: 1;
   }
 }

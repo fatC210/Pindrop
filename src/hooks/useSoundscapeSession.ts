@@ -111,6 +111,46 @@ function textMatchesLocale(text: string, locale: AppLocale): boolean {
   return hasLatin || !hasCjk;
 }
 
+function isDisplayableSceneDescription(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return false;
+  }
+
+  return ![
+    /^\s*(?:cues?|summary)\s*:/i,
+    /^\s*scene\s*\d+\s*:/i,
+    /(?:^|\s)\d+\s*[\).:]\s+\S+/,
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function getAlternateLocale(locale: AppLocale): AppLocale {
+  return locale === 'zh-CN' ? 'en' : 'zh-CN';
+}
+
+function getDisplayableNarrativeSummary(
+  summary: SoundscapeRecipe['narrativeAnchors'] extends { summary: infer T } ? T : never,
+  locale: AppLocale
+): string | undefined {
+  const localesToTry: AppLocale[] = [locale, getAlternateLocale(locale)];
+
+  for (const candidateLocale of localesToTry) {
+    const candidate = summary?.[candidateLocale]?.trim();
+    if (!candidate) {
+      continue;
+    }
+
+    if (
+      textMatchesLocale(candidate, candidateLocale) &&
+      isDisplayableSceneDescription(candidate)
+    ) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
 export interface SessionMapPin {
   id: string;
   cacheKey: string | null;
@@ -787,11 +827,9 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
 
       const llmNarrativeAnchors =
         narrativeAnchors?.source === 'llm' ? narrativeAnchors : undefined;
-      const llmSummary = llmNarrativeAnchors?.summary?.[locale]?.trim();
-      const sceneDescription =
-        typeof llmSummary === 'string' && textMatchesLocale(llmSummary, locale)
-          ? llmSummary
-          : undefined;
+      const sceneDescription = llmNarrativeAnchors?.summary
+        ? getDisplayableNarrativeSummary(llmNarrativeAnchors.summary, locale)
+        : undefined;
 
       return {
         sceneDescription,

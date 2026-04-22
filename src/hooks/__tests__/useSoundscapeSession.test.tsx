@@ -768,6 +768,36 @@ describe('useSoundscapeSession deletion flow', () => {
     );
   });
 
+  test('falls back to the other cached narrative language when the active locale version is missing', async () => {
+    mockLocaleState.value = 'en';
+    mockGetCachedMarkers.mockResolvedValue([
+      {
+        ...createCachedSoundscape(),
+        recipe: {
+          ...createCachedSoundscape().recipe,
+          narrativeAnchors: {
+            ...createCachedSoundscape().recipe.narrativeAnchors,
+            summary: {
+              en: '',
+              'zh-CN':
+                '\u6cb3\u5cb8\u65e7\u4e66\u644a\u6b63\u5728\u6446\u51fa\u7eb8\u8d28\u4e66\u672c\uff0c\u624b\u98ce\u7434\u7247\u6bb5\u5728\u7801\u5934\u8fb9\u8f7b\u8f7b\u98d8\u5f00\u3002',
+            },
+          },
+        },
+      },
+    ]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toContain(
+      '\u6cb3\u5cb8\u65e7\u4e66\u644a'
+    );
+  });
+
   test('does not show a description when cached LLM text does not match the interface language', async () => {
     mockLocaleState.value = 'zh-CN';
     mockGetCachedMarkers.mockResolvedValue([

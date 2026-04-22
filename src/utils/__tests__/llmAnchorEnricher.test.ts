@@ -46,13 +46,17 @@ describe('llmAnchorEnricher', () => {
     const userMessage = messages[1]?.content ?? '';
 
     expect(systemMessage).toContain(
-      'Generate one place-specific soundscape description paragraph'
+      'Generate one short place-specific soundscape description'
     );
     expect(systemMessage).toContain('Return only the final body text');
     expect(systemMessage).toContain('Write in Simplified Chinese');
+    expect(systemMessage).toContain('Write one short natural-language paragraph');
+    expect(systemMessage).toContain('Target roughly 24 to 50 Chinese characters');
+    expect(systemMessage).toContain('One or two sentences is enough.');
     expect(systemMessage).toContain('Do not reply with the place name');
-    expect(userMessage).toContain('Output only the final display paragraph');
-    expect(userMessage).toContain('Keep it natural, specific, and complete.');
+    expect(userMessage).toContain('Output only the final short display paragraph');
+    expect(userMessage).toContain('Keep it natural, specific, complete, and short.');
+    expect(userMessage).toContain('Avoid long lists joined by commas.');
     expect(userMessage).toContain('Never output strings like "conversation 1", "Cues:", "Summary:"');
     expect(userMessage).toContain('Location: Georgia, Imereti, Kutaisi');
     expect(userMessage).toContain('Context: time: day; terrain: river; near water: river');
@@ -406,6 +410,53 @@ describe('llmAnchorEnricher', () => {
       ],
       signature: {
         prompt: 'Sichuan dialect bargaining at the morning market',
+      },
+    });
+  });
+
+  it('keeps related preferred-section detail lines together for zh-CN mixed-script responses', () => {
+    const content = `1. **Analyze the Request:**
+* **Goal:** Generate one place-specific soundscape description paragraph for a task card.
+* **Language:** Simplified Chinese (zh-CN).
+
+2. **Determine Soundscape Elements for Changjiang, Jiangxi (Suburb, Day, Plain, Temperate):**
+* *River/Water:* Chang River (昌江) - flowing water, gentle lapping, maybe a small boat engine.
+* *Vehicles:* Electric scooters (very common in Jingdezhen suburbs), occasional delivery trucks, distant rumble of suburban traffic.
+* *Markets/Shops/Routines:* Local breakfast stall sounds (steamer basket clinking, sizzling oil), vendors chatting in Jiangxi/Jingdezhen dialect, ceramic workshop sounds (faint clinking`;
+
+    expect(
+      __private__.normalizeFreeformAnchors(content, 'zh-CN', {
+        ...SAMPLE_CONTEXT,
+        administrativeRegionName: 'Jiangxi',
+        cityName: 'Changjiang',
+        regionName: 'Jingdezhen',
+        countryName: 'China',
+        regionType: 'city_suburb',
+        terrain: 'plain',
+      })
+    ).toMatchObject({
+      source: 'llm',
+      confidence: 0.72,
+      summary: {
+        en: '',
+        'zh-CN':
+          'Chang River (昌江) - flowing water, gentle lapping, maybe a small boat engine. Electric scooters (very common in Jingdezhen suburbs), occasional delivery trucks, distant rumble of suburban traffic. Local breakfast stall sounds (steamer basket clinking, sizzling oil), vendors chatting in Jiangxi/Jingdezhen dialect, ceramic workshop sounds (faint clinking',
+      },
+      cues: [
+        {
+          prompt: 'Chang River (昌江) - flowing water, gentle lapping, maybe a small boat engine',
+        },
+        {
+          prompt:
+            'Electric scooters (very common in Jingdezhen suburbs), occasional delivery trucks, distant rumble of suburban traffic',
+        },
+        {
+          prompt:
+            'Local breakfast stall sounds (steamer basket clinking, sizzling oil), vendors chatting in Jiangxi/Jingdezhen dialect, ceramic workshop sounds (faint clinking',
+        },
+      ],
+      signature: {
+        prompt: 'Chang River (昌江) - flowing water, gentle lapping, maybe a small boat engine',
       },
     });
   });

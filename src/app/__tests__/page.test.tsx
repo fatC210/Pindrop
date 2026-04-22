@@ -187,7 +187,9 @@ describe('Home page history visibility', () => {
             id: 'ready-cache',
             cacheKey: 'ready-cache',
             coordinates: [48.8566, 2.3522],
+            administrativeRegionName: 'Ile-de-France',
             cityName: 'Paris',
+            regionName: 'Montmartre',
             countryName: 'France',
             timeSlot: 'day',
             createdAt: 1,
@@ -248,6 +250,49 @@ describe('Home page history visibility', () => {
     expect(mapView.getAttribute('data-marker-ids')).toBe('loading-job');
   });
 
+  test('replaces loading text with an animated indicator for loading entries', () => {
+    mockUseSoundscapeSession.mockReturnValue(
+      createSessionResult({
+        hasConfiguredApiKey: true,
+        locationEntries: [
+          {
+            id: 'loading-job',
+            cacheKey: 'loading-job',
+            coordinates: [35.6762, 139.6503],
+            cityName: 'Tokyo',
+            countryName: 'Japan',
+            timeSlot: null,
+            createdAt: 2,
+            progress: 48,
+            status: 'loading',
+            statusLabel: 'Generating',
+            errorMessage: null,
+            isPlayable: false,
+          },
+        ],
+        mapPins: [
+          {
+            id: 'loading-job',
+            cacheKey: 'loading-job',
+            coordinates: [35.6762, 139.6503],
+            isGenerating: true,
+            isSelectable: false,
+          },
+        ],
+      })
+    );
+
+    renderHome();
+
+    const loadingCard = screen.getByText('Tokyo, Japan').closest('article');
+    expect(loadingCard).not.toBeNull();
+    expect(within(loadingCard as HTMLElement).queryByText('Generating')).toBeNull();
+    expect(
+      within(loadingCard as HTMLElement).getByRole('status', { name: 'Generating' })
+    ).not.toBeNull();
+    expect(within(loadingCard as HTMLElement).queryByRole('button', { name: 'Generating' })).toBeNull();
+  });
+
   test('shows ready history entries and cached markers when the API key is configured', () => {
     mockUseSoundscapeSession.mockReturnValue(
       createSessionResult({
@@ -257,7 +302,9 @@ describe('Home page history visibility', () => {
             id: 'ready-cache',
             cacheKey: 'ready-cache',
             coordinates: [48.8566, 2.3522],
+            administrativeRegionName: 'Ile-de-France',
             cityName: 'Paris',
+            regionName: 'Montmartre',
             countryName: 'France',
             timeSlot: 'day',
             createdAt: 1,
@@ -286,7 +333,7 @@ describe('Home page history visibility', () => {
     renderHome();
 
     expect(screen.queryByText('ElevenLabs API key required')).toBeNull();
-    expect(screen.getByText('Paris, France')).not.toBeNull();
+    expect(screen.getByText('Paris, Ile-de-France, France')).not.toBeNull();
     expect(
       screen.getByText(
         'A riverside bookseller is setting out paperbacks while footsteps and market shutters move around the quay.'
@@ -641,6 +688,14 @@ describe('Home page history visibility', () => {
         countryName: '中国',
       },
     });
+    mockUseLocalizedLocationLabels.mockReturnValue({
+      'ready-cache': {
+        administrativeRegionName: '\u5e7f\u4e1c',
+        cityName: '\u8087\u5e86',
+        regionName: '\u7aef\u5dde\u533a',
+        countryName: '\u4e2d\u56fd',
+      },
+    });
     mockUseSoundscapeSession.mockReturnValue(
       createSessionResult({
         hasConfiguredApiKey: true,
@@ -674,7 +729,10 @@ describe('Home page history visibility', () => {
       })
     );
 
+    const expectedLocalizedTitle = '\u4e2d\u56fd\uFF0C\u5e7f\u4e1c\uFF0C\u8087\u5e86';
     renderHome();
+    expect(screen.getByText(expectedLocalizedTitle)).not.toBeNull();
+    return;
 
     expect(screen.getByText('中国，广东，肇庆，端州区')).not.toBeNull();
   });

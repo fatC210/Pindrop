@@ -89,6 +89,7 @@ const DEBUG_TAIL_PATTERNS = [
 
 const PREFERRED_NARRATIVE_SECTION_PATTERNS = [
   /\bbrainstorm audible details\b/i,
+  /\bdetermine soundscape elements\b/i,
   /\baudible details\b/i,
   /\blocal character\b/i,
   /\bdrafting the soundscape\b/i,
@@ -313,10 +314,15 @@ function collapseInlineEnumerations(content: string): string {
   return content.replace(/(?:^|\s)\d+\s*[\).:]\s+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+interface ExtractNarrativeSummaryOptions {
+  allowMismatchedScript?: boolean;
+}
+
 function extractNarrativeSummary(
   content: string,
   locale: AppLocale,
-  context?: LocationContext
+  context?: LocationContext,
+  options: ExtractNarrativeSummaryOptions = {}
 ): string | null {
   const cleaned = trimDebugTail(stripLeadScaffolding(content));
   if (!cleaned) {
@@ -332,7 +338,7 @@ function extractNarrativeSummary(
     META_REASONING_PATTERNS.some((pattern) => pattern.test(normalizedCandidate)) ||
     NON_NARRATIVE_LINE_PATTERNS.some((pattern) => pattern.test(cleaned)) ||
     !isDisplayableSummary(normalizedCandidate) ||
-    !matchesTargetScript(normalizedCandidate, locale)
+    (!options.allowMismatchedScript && !matchesTargetScript(normalizedCandidate, locale))
   ) {
     return null;
   }
@@ -340,7 +346,11 @@ function extractNarrativeSummary(
   const fragments = normalizedCandidate
     .split(/(?<=[.!?;。！？；])\s+/)
     .map((part) => part.trim())
-    .filter((part) => part.length >= 4 && matchesTargetScript(part, locale));
+    .filter(
+      (part) =>
+        part.length >= 4 &&
+        (options.allowMismatchedScript || matchesTargetScript(part, locale))
+    );
 
   const completeFragments = fragments.filter((part) => /[.!?。！？]$/.test(part));
   const selectedFragments = completeFragments.length > 0 ? completeFragments : fragments;
@@ -382,7 +392,10 @@ function extractPreferredSectionCandidates(
   context?: LocationContext
 ): string[] {
   const lines = content.split('\n');
-  const candidates: string[] = [];
+  const candidates: Array<{
+    strict: string | null;
+    fallback: string | null;
+  }> = [];
   let inPreferredSection = false;
 
   for (const rawLine of lines) {
@@ -402,13 +415,24 @@ function extractPreferredSectionCandidates(
       continue;
     }
 
-    const candidate = extractNarrativeSummary(line, locale, context);
-    if (candidate) {
-      candidates.push(candidate);
+    const strict = extractNarrativeSummary(line, locale, context);
+    const fallback =
+      strict ??
+      extractNarrativeSummary(line, locale, context, {
+        allowMismatchedScript: true,
+      });
+
+    if (strict || fallback) {
+      candidates.push({ strict, fallback });
     }
   }
 
-  return dedupeComparableText(candidates);
+  const hasStrictCandidate = candidates.some((candidate) => candidate.strict);
+  return dedupeComparableText(
+    candidates
+      .map((candidate) => (hasStrictCandidate ? candidate.strict ?? candidate.fallback : candidate.fallback))
+      .filter((candidate): candidate is string => Boolean(candidate))
+  );
 }
 
 function dedupeComparableText(values: string[]): string[] {
@@ -420,6 +444,13 @@ function dedupeComparableText(values: string[]): string[] {
   );
 }
 
+function joinNarrativeCandidates(candidates: string[], locale: AppLocale): string {
+  const joiner =
+    locale === 'zh-CN' && !candidates.some((candidate) => /[A-Za-z]/.test(candidate)) ? '' : ' ';
+
+  return candidates.join(joiner);
+}
+
 function extractFreeformNarrativeBody(
   content: string,
   locale: AppLocale,
@@ -427,7 +458,7 @@ function extractFreeformNarrativeBody(
 ): string | null {
   const preferredSectionCandidates = extractPreferredSectionCandidates(content, locale, context);
   if (preferredSectionCandidates.length > 0) {
-    return preferredSectionCandidates.join(locale === 'zh-CN' ? '' : ' ');
+    return joinNarrativeCandidates(preferredSectionCandidates, locale);
   }
 
   const structuredCandidates = dedupeComparableText([
@@ -441,7 +472,7 @@ function extractFreeformNarrativeBody(
   ]);
 
   if (structuredCandidates.length > 0) {
-    return structuredCandidates.join(locale === 'zh-CN' ? '' : ' ');
+    return joinNarrativeCandidates(structuredCandidates, locale);
   }
 
   return extractNarrativeSummary(content, locale, context);
@@ -603,10 +634,15 @@ function buildMessages(
   locale: AppLocale
 ): Array<{ role: 'system' | 'user'; content: string }> {
   const system = [
-    'Generate one place-specific soundscape description paragraph for direct display in a task card.',
+    'Generate one short place-specific soundscape description for direct display in a task card.',
     'Return only the final body text with no JSON, no markdown, no code fences, no labels, and no extra explanation.',
     `Write in ${getTargetLanguageLabel(locale)}.`,
-    'Write one compact paragraph with complete natural-language sentences.',
+    'Write one short natural-language paragraph, not a single long paragraph.',
+    'Keep it brief enough for a compact UI card.',
+    locale === 'zh-CN'
+      ? 'Target roughly 24 to 50 Chinese characters when possible.'
+      : 'Target roughly 12 to 30 words when possible.',
+    'One or two sentences is enough.',
     'Use concrete audible details so a listener can compare the paragraph with the generated audio.',
     'Do not invent landmarks, festivals, narration, announcer intros, dialogue scripts, bullets, drafts, or numbered headings.',
     'Do not reply with the place name, its translation, coordinates, or an administrative hierarchy by itself.',
@@ -614,11 +650,12 @@ function buildMessages(
 
   const user = [
     'Requirements:',
-    '- Output only the final display paragraph, with no thinking process or analysis.',
+    '- Output only the final short display paragraph, with no thinking process or analysis.',
     '- Describe concrete audible details with local character.',
     '- Prioritize markets, rivers, parks, shops, water, vehicles, and everyday routines when relevant.',
-    '- Keep it natural, specific, and complete.',
+    '- Keep it natural, specific, complete, and short.',
     '- Never output strings like "conversation 1", "Cues:", "Summary:", numbered scene headings, or spoken-intro scripts.',
+    '- Avoid long lists joined by commas.',
     '',
     `Location: ${buildLocationPrompt(context)}${buildContextPrompt(context)}`,
   ].join('\n');
