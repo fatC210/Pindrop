@@ -53,11 +53,27 @@ describe('llmAnchorEnricher', () => {
     expect(systemMessage).toContain('Write one short natural-language paragraph');
     expect(systemMessage).toContain('Target roughly 24 to 50 Chinese characters');
     expect(systemMessage).toContain('One or two sentences is enough.');
+    expect(systemMessage).toContain('Use 3 to 4 concrete audible details');
+    expect(systemMessage).toContain(
+      'Make the 3 to 4 sound anchors clearly separable as short clauses or short sentences.'
+    );
+    expect(systemMessage).toContain('Prefer a compact sound palette made of specific hearable elements');
     expect(systemMessage).toContain('Do not reply with the place name');
-    expect(systemMessage).toContain('Environmental human sound is allowed only as indistinct local background texture');
+    expect(systemMessage).toContain(
+      'Environmental human sound is allowed as distant or blurred local background texture'
+    );
     expect(userMessage).toContain('Output only the final short display paragraph');
     expect(userMessage).toContain('Keep it natural, specific, complete, and short.');
-    expect(userMessage).toContain('Avoid long lists joined by commas.');
+    expect(userMessage).toContain('Prioritize 3 to 4 specific sounds over broad scene-setting.');
+    expect(userMessage).toContain(
+      'Keep the sound anchors easy to separate into short clauses or short sentences.'
+    );
+    expect(userMessage).toContain(
+      'Distant local announcements, prayer, or whispers are acceptable only when they read as environmental texture'
+    );
+    expect(userMessage).toContain(
+      'Avoid long lists joined by commas; choose a small set of vivid sound anchors instead.'
+    );
     expect(userMessage).toContain('Never output strings like "conversation 1", "Cues:", "Summary:"');
     expect(userMessage).toContain('Avoid language-specific spoken text');
     expect(userMessage).toContain('Location: Georgia, Imereti, Kutaisi');
@@ -117,6 +133,42 @@ describe('llmAnchorEnricher', () => {
       cues: [
         {
           prompt: 'street vendors, bowls, and scooter movement',
+        },
+      ],
+    });
+  });
+
+  it('keeps distant announcements, prayer, and whispers when they are environmental texture', () => {
+    expect(
+      __private__.normalizeAnchors(
+        {
+          cues: [
+            {
+              prompt_en:
+                'distant station announcement, low local whispers, and a convenience-store entry chime',
+              label_en: 'station texture and chime',
+            },
+            {
+              prompt_en: 'far-off call to prayer carried by the wind',
+              label_en: 'far-off prayer',
+            },
+          ],
+        },
+        {
+          ...SAMPLE_CONTEXT,
+          cityName: 'Tokyo',
+          countryName: 'Japan',
+          languageVariant: 'ja-JP',
+        }
+      )
+    ).toMatchObject({
+      cues: [
+        {
+          prompt:
+            'distant station announcement, low local whispers, and a convenience-store entry chime',
+        },
+        {
+          prompt: 'far-off call to prayer carried by the wind',
         },
       ],
     });

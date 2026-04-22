@@ -293,6 +293,48 @@ describe('Home page history visibility', () => {
     expect(within(loadingCard as HTMLElement).queryByRole('button', { name: 'Generating' })).toBeNull();
   });
 
+  test('shows the failed status only once for error entries', () => {
+    mockUseSoundscapeSession.mockReturnValue(
+      createSessionResult({
+        hasConfiguredApiKey: true,
+        locationEntries: [
+          {
+            id: 'error-job',
+            cacheKey: null,
+            coordinates: [25.0418, 102.7183],
+            administrativeRegionName: 'Yunnan',
+            cityName: 'Yuanmou',
+            regionName: '',
+            countryName: 'China',
+            timeSlot: null,
+            createdAt: 2,
+            progress: 42,
+            status: 'error',
+            statusLabel: 'Failed',
+            errorMessage: 'Generation failed',
+            isPlayable: false,
+          },
+        ],
+        mapPins: [
+          {
+            id: 'error-job',
+            cacheKey: null,
+            coordinates: [25.0418, 102.7183],
+            isGenerating: false,
+            isSelectable: false,
+          },
+        ],
+      })
+    );
+
+    renderHome();
+
+    const errorCard = screen.getByText('Yuanmou, Yunnan, China').closest('article');
+    expect(errorCard).not.toBeNull();
+    expect(within(errorCard as HTMLElement).getAllByText('Failed')).toHaveLength(1);
+    expect(within(errorCard as HTMLElement).queryByRole('button', { name: 'Failed' })).toBeNull();
+  });
+
   test('shows ready history entries and cached markers when the API key is configured', () => {
     mockUseSoundscapeSession.mockReturnValue(
       createSessionResult({
@@ -347,6 +389,50 @@ describe('Home page history visibility', () => {
     const mapView = screen.getByTestId('map-view');
     expect(mapView.getAttribute('data-marker-count')).toBe('1');
     expect(mapView.getAttribute('data-marker-ids')).toBe('ready-cache');
+  });
+
+  test('shows an LLM fallback notice on ready cards when generation used rule-based fallback', () => {
+    mockUseSoundscapeSession.mockReturnValue(
+      createSessionResult({
+        hasConfiguredApiKey: true,
+        locationEntries: [
+          {
+            id: 'ready-cache',
+            cacheKey: 'ready-cache',
+            coordinates: [64.1466, -21.9426],
+            cityName: 'Reykjavik',
+            countryName: 'Iceland',
+            timeSlot: 'day',
+            createdAt: 1,
+            progress: 100,
+            status: 'ready',
+            narrativeSource: 'rules',
+            llmFallbackReason: 'llm_request_failed',
+            fallbackNotice:
+              'Using fallback scene because the LLM request failed: upstream timeout',
+            statusLabel: 'Ready',
+            errorMessage: null,
+            isPlayable: true,
+            sceneDescription: 'Wind and harbor water move under distant traffic.',
+          },
+        ],
+        mapPins: [
+          {
+            id: 'ready-cache',
+            cacheKey: 'ready-cache',
+            coordinates: [64.1466, -21.9426],
+            isGenerating: false,
+            isSelectable: true,
+          },
+        ],
+      })
+    );
+
+    renderHome();
+
+    expect(
+      screen.getByText('Using fallback scene because the LLM request failed: upstream timeout')
+    ).not.toBeNull();
   });
 
   test('hides progress text for ready entries and keeps a single-line waveform play row', () => {

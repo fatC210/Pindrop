@@ -322,6 +322,20 @@ function createCachedSoundscape() {
               'zh-CN': '\u521d\u5f00\u7684\u4e66\u644a',
             },
           },
+          {
+            prompt: 'paperbacks thudding onto a folding stand',
+            label: {
+              en: 'paperbacks on a folding stand',
+              'zh-CN': '\u7eb8\u8d28\u4e66\u672c\u653e\u4e0a\u6298\u53e0\u4e66\u67b6\u58f0',
+            },
+          },
+          {
+            prompt: 'low quay footsteps brushing past the stall',
+            label: {
+              en: 'low quay footsteps',
+              'zh-CN': '\u7801\u5934\u8fb9\u7684\u811a\u6b65\u58f0',
+            },
+          },
         ],
       },
       promptVersion: 2,
@@ -343,6 +357,8 @@ function createDeferred<T>() {
 
 describe('useSoundscapeSession deletion flow', () => {
   beforeEach(() => {
+    const cachedEntries = new Map<string, ReturnType<typeof createCachedSoundscape>>();
+
     vi.clearAllMocks();
     mockLocaleState.value = 'en';
     vi.stubGlobal('URL', {
@@ -350,10 +366,29 @@ describe('useSoundscapeSession deletion flow', () => {
       revokeObjectURL: vi.fn(),
     });
     vi.stubGlobal('navigator', { userAgent: 'jsdom' });
-    mockGetCachedMarkers.mockResolvedValue([]);
-    mockGetCachedSoundscape.mockResolvedValue(null);
-    mockCacheSoundscape.mockResolvedValue(undefined);
-    mockDeleteCachedSoundscape.mockResolvedValue(undefined);
+    mockGetCachedMarkers.mockImplementation(async () => Array.from(cachedEntries.values()));
+    mockGetCachedSoundscape.mockImplementation(async (cacheKey: string) => cachedEntries.get(cacheKey) ?? null);
+    mockCacheSoundscape.mockImplementation(async (cacheKey: string, value: Record<string, unknown>) => {
+      cachedEntries.set(cacheKey, {
+        id: cacheKey,
+        coordinates: value.coordinates as [number, number],
+        timeSlot: value.timeSlot as 'day',
+        administrativeRegionName: value.administrativeRegionName as string | undefined,
+        cityName: value.cityName as string,
+        regionName: value.regionName as string | undefined,
+        countryName: value.countryName as string,
+        generatedAt: value.generatedAt as number,
+        playCount: value.playCount as number,
+        lastPlayedAt: value.lastPlayedAt as number,
+        sizeBytes: value.sizeBytes as number,
+        playbackDurationSeconds: value.playbackDurationSeconds as number,
+        audioBlobs: value.audioBlobs as { ambient?: Blob; atmosphere?: Blob; signature?: Blob },
+        recipe: value.recipe,
+      } as ReturnType<typeof createCachedSoundscape>);
+    });
+    mockDeleteCachedSoundscape.mockImplementation(async (cacheKey: string) => {
+      cachedEntries.delete(cacheKey);
+    });
     mockUpdatePlayStats.mockResolvedValue(undefined);
     mockAddLocationHistory.mockResolvedValue(1);
     mockGetLlmEnhancementConfig.mockReturnValue({
@@ -379,7 +414,13 @@ describe('useSoundscapeSession deletion flow', () => {
       ],
     });
     mockHasApiKey.mockReturnValue(true);
-    mockGenerateRecipe.mockImplementation((location: LocationContext) => ({
+    mockGenerateRecipe.mockImplementation((
+      location: LocationContext,
+      options?: {
+        narrativeAnchors?: unknown;
+        interfaceLocale?: 'en' | 'zh-CN';
+      }
+    ) => ({
       id: 'generated-cache',
       location,
       generatedAt: 1700000000000,
@@ -439,6 +480,8 @@ describe('useSoundscapeSession deletion flow', () => {
           music: 0.4,
         },
       },
+      narrativeAnchors: options?.narrativeAnchors,
+      interfaceLocale: options?.interfaceLocale,
     }));
     mockGenerateSoundscapeAudio.mockResolvedValue({
       blobs: {
@@ -589,7 +632,7 @@ describe('useSoundscapeSession deletion flow', () => {
     );
   });
 
-  test('stops generation when the LLM does not return a usable narrative', async () => {
+  test('falls back to rule-based prompts when the LLM does not return a usable narrative', async () => {
     const location = createLocationContext({
       cityName: 'Shitan',
       regionName: 'Xiangtan County',
@@ -600,7 +643,15 @@ describe('useSoundscapeSession deletion flow', () => {
 
     mockResolveLocation.mockResolvedValue(location);
     mockEnrichSoundscapeNarrative.mockResolvedValue(null);
+    mockGenerateSoundscapeAudio.mockResolvedValue({
+      blobs: {
+        ambient: new Blob(['ambient']),
+      },
+      failedLayers: [],
+      failureMessages: {},
+    });
 
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { result } = renderHook(() => useSoundscapeSession());
 
     await act(async () => {
@@ -608,13 +659,84 @@ describe('useSoundscapeSession deletion flow', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.locationEntries[0]?.status).toBe('error');
+      expect(result.current.locationEntries[0]?.status).toBe('ready');
     });
 
-    expect(mockGenerateRecipe).not.toHaveBeenCalled();
-    expect(result.current.locationEntries[0]?.errorMessage).toBe(
-      'PinDrop could not get a concrete place-specific scene from the LLM, so generation was stopped.'
+    expect(mockGenerateRecipe).toHaveBeenCalledWith(location, {
+      narrativeAnchors: expect.objectContaining({
+        source: 'rules',
+        fallbackReasonCode: 'llm_unavailable',
+      }),
+      interfaceLocale: 'en',
+    });
+    expect(result.current.locationEntries[0]?.narrativeSource).toBe('rules');
+    expect(result.current.locationEntries[0]?.fallbackNotice).toContain(
+      'Using fallback scene because the LLM did not return a usable place-specific narrative.'
     );
+    expect(result.current.locationEntries[0]?.errorMessage).toBeNull();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[PinDrop Warning] LLM narrative unavailable, falling back to rules:',
+      expect.objectContaining({
+        message:
+          'PinDrop could not get a concrete place-specific scene from the LLM, so generation was stopped.',
+      })
+    );
+
+    consoleWarnSpy.mockRestore();
+  });
+
+  test('falls back to rule-based prompts when the LLM request throws', async () => {
+    const location = createLocationContext({
+      cityName: 'Reykjavik',
+      regionName: 'Capital Region',
+      countryName: 'Iceland',
+      cultureRegion: 'western_europe',
+      nearWater: 'sea',
+      terrain: 'coast',
+    });
+
+    mockResolveLocation.mockResolvedValue(location);
+    mockEnrichSoundscapeNarrative.mockRejectedValue(new Error('LLM upstream timeout'));
+    mockGenerateSoundscapeAudio.mockResolvedValue({
+      blobs: {
+        ambient: new Blob(['ambient']),
+      },
+      failedLayers: [],
+      failureMessages: {},
+    });
+
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await act(async () => {
+      await result.current.handleCoordinateSelect(64.1466, -21.9426);
+    });
+
+    await waitFor(() => {
+      expect(result.current.locationEntries[0]?.status).toBe('ready');
+    });
+
+    expect(mockGenerateRecipe).toHaveBeenCalledWith(location, {
+      narrativeAnchors: expect.objectContaining({
+        source: 'rules',
+        fallbackReasonCode: 'llm_request_failed',
+      }),
+      interfaceLocale: 'en',
+    });
+    expect(result.current.locationEntries[0]?.narrativeSource).toBe('rules');
+    expect(result.current.locationEntries[0]?.fallbackNotice).toContain(
+      'Using fallback scene because the LLM request failed: LLM upstream timeout'
+    );
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[PinDrop Warning] LLM narrative request failed, falling back to rules:',
+      expect.objectContaining({
+        errorDetails: expect.objectContaining({
+          message: 'LLM upstream timeout',
+        }),
+      })
+    );
+
+    consoleWarnSpy.mockRestore();
   });
 
   test('surfaces detailed ElevenLabs layer failures instead of a generic no-audio error', async () => {
@@ -629,7 +751,7 @@ describe('useSoundscapeSession deletion flow', () => {
       },
     });
 
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { result } = renderHook(() => useSoundscapeSession());
 
     await act(async () => {
@@ -643,8 +765,8 @@ describe('useSoundscapeSession deletion flow', () => {
     expect(result.current.locationEntries[0]?.errorMessage).toBe(
       'Ambient generation failed: ElevenLabs request failed (429): quota exceeded | Atmosphere generation failed: ElevenLabs request failed (403): plan upgrade required'
     );
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '[PinDrop Error] Soundscape generation failed:',
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[PinDrop Warning] Soundscape generation failed:',
       expect.objectContaining({
         message:
           'Ambient generation failed: ElevenLabs request failed (429): quota exceeded | Atmosphere generation failed: ElevenLabs request failed (403): plan upgrade required',
@@ -655,7 +777,7 @@ describe('useSoundscapeSession deletion flow', () => {
       })
     );
 
-    consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
   });
 
   test('does not expose cached entries that only contain short non-bed fragments', async () => {
@@ -688,8 +810,8 @@ describe('useSoundscapeSession deletion flow', () => {
       expect(result.current.locationEntries).toHaveLength(1);
     });
 
-    expect(result.current.locationEntries[0]?.sceneDescription).toContain(
-      'A riverside bookseller is setting out paperbacks'
+    expect(result.current.locationEntries[0]?.sceneDescription).toBe(
+      'riverside accordion phrases, opening bookstalls, paperbacks on a folding stand, low quay footsteps'
     );
     expect(result.current.locationEntries[0]?.sceneDescription).not.toBe('soft accordion');
   });
@@ -750,9 +872,7 @@ describe('useSoundscapeSession deletion flow', () => {
     await waitFor(() => {
       expect(result.current.locationEntries).toHaveLength(1);
       expect(result.current.locationEntries[0]?.status).toBe('loading');
-      expect(result.current.locationEntries[0]?.sceneDescription).toContain(
-        'A market stall is rolling up its shutter'
-      );
+      expect(result.current.locationEntries[0]?.sceneDescription).toContain('A market stall');
     });
 
     await act(async () => {
@@ -775,8 +895,8 @@ describe('useSoundscapeSession deletion flow', () => {
       expect(result.current.locationEntries).toHaveLength(1);
     });
 
-    expect(result.current.locationEntries[0]?.sceneDescription).toContain(
-      'A riverside bookseller is setting out paperbacks'
+    expect(result.current.locationEntries[0]?.sceneDescription).toBe(
+      '\u6cb3\u7554\u624b\u98ce\u7434\u7247\u6bb5\u3001\u521d\u5f00\u7684\u4e66\u644a\u3001\u7eb8\u8d28\u4e66\u672c\u653e\u4e0a\u6298\u53e0\u4e66\u67b6\u58f0\u3001\u7801\u5934\u8fb9\u7684\u811a\u6b65\u58f0'
     );
   });
 
@@ -795,6 +915,29 @@ describe('useSoundscapeSession deletion flow', () => {
               'zh-CN':
                 '\u6cb3\u5cb8\u65e7\u4e66\u644a\u6b63\u5728\u6446\u51fa\u7eb8\u8d28\u4e66\u672c\uff0c\u624b\u98ce\u7434\u7247\u6bb5\u5728\u7801\u5934\u8fb9\u8f7b\u8f7b\u98d8\u5f00\u3002',
             },
+            cues: [
+              {
+                prompt: 'riverbank old bookseller opening the stall',
+                label: {
+                  en: '',
+                  'zh-CN': '\u6cb3\u5cb8\u65e7\u4e66\u644a',
+                },
+              },
+              {
+                prompt: 'accordion phrases over the quay',
+                label: {
+                  en: '',
+                  'zh-CN': '\u624b\u98ce\u7434\u7247\u6bb5',
+                },
+              },
+              {
+                prompt: 'paperbacks sliding onto the stand',
+                label: {
+                  en: '',
+                  'zh-CN': '\u7eb8\u8d28\u4e66\u672c\u58f0',
+                },
+              },
+            ],
           },
         },
       },
@@ -806,8 +949,8 @@ describe('useSoundscapeSession deletion flow', () => {
       expect(result.current.locationEntries).toHaveLength(1);
     });
 
-    expect(result.current.locationEntries[0]?.sceneDescription).toContain(
-      '\u6cb3\u5cb8\u65e7\u4e66\u644a'
+    expect(result.current.locationEntries[0]?.sceneDescription).toBe(
+      'riverbank old bookseller opening the stall, accordion phrases over the quay, paperbacks sliding onto the stand'
     );
   });
 
@@ -837,6 +980,20 @@ describe('useSoundscapeSession deletion flow', () => {
             'zh-CN': '\u6eaa\u6c34\u4e0e\u6469\u6258\u8f66\u58f0',
           },
         },
+        {
+          prompt: 'a bicycle bell from deeper in the lane',
+          label: {
+            en: 'a bicycle bell',
+            'zh-CN': '\u81ea\u884c\u8f66\u94c3\u58f0',
+          },
+        },
+        {
+          prompt: 'shop shutters settling down for the evening',
+          label: {
+            en: 'shop shutters settling',
+            'zh-CN': '\u5377\u5e18\u95e8\u58f0',
+          },
+        },
       ],
     });
     mockGenerateSoundscapeAudio.mockReturnValue(deferredAudio.promise);
@@ -856,7 +1013,9 @@ describe('useSoundscapeSession deletion flow', () => {
 
     await waitFor(() => {
       expect(result.current.locationEntries[0]?.displayLocale).toBe('zh-CN');
-      expect(result.current.locationEntries[0]?.sceneDescription).toContain('\u6eaa\u6c34');
+      expect(result.current.locationEntries[0]?.sceneDescription).toBe(
+        'stream water and a scooter, a bicycle bell, shop shutters settling'
+      );
       expect(result.current.locationEntries[0]?.administrativeRegionName).toBe('Hunan');
     });
 
@@ -922,6 +1081,7 @@ describe('useSoundscapeSession deletion flow', () => {
                 'Dusk wind sweeps the plain as yaks low in the distance. A passing motorcycle rumbles while a nearby stream murmurs softly near closing shops. *Draft 2:* Evening wind sweeps the high plain as yaks low softly. A distant motorcycle rumbles past closing shops while a cold stream murmurs nearby. *Draft 3:* Wind sweeps the dusk plain as yaks low in the distance. A motorcycle rumbles past closing storefronts while a nearby stream murmurs softly. Generate a short place-specific soundscape description for a task card. Return only the final body text, no JSON, no markdown.',
               'zh-CN': '',
             },
+            cues: [],
           },
         },
       },

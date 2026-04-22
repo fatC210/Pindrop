@@ -124,8 +124,9 @@ export function buildAmbientLayer(
     `Natural environment: ${environmentDetails.join(', ')}.`,
     specificityInstruction,
     'Keep perspective realistic and layered. No detached narrator, scene-setting monologue, news-style readout, spoken intro, recited description, voice-over, announcer, clean slogan, quoted line, clear dialogue, or sung lyrics.',
-    'Human presence is allowed only as natural background texture such as vendor calls, crowd wash, passersby murmur, market chatter, or brief local exclamations that remain indistinct and non-semantic.',
-    'Never let any foreground voice become clearly intelligible, isolated, text-like, or TTS-like. Do not produce discernible monologue, broadcast copy, spoken sentence, or obvious language mismatch for the place.',
+    'Favor a compact palette of 2 to 4 vivid, place-credible sound anchors instead of a generic wash of ambience.',
+    'Human presence is allowed only as environmental background texture such as vendor calls, crowd wash, passersby murmur, distant station announcements, far-off prayer, or low local whispers that remain blurred and non-semantic.',
+    'Never let any foreground voice become clearly intelligible, isolated, text-like, or TTS-like. Do not produce a clean spoken sentence, broadcast copy in the foreground, or an obvious language mismatch for the place.',
     'Avoid cinematic stingers, random novelty effects, exaggerated animals that do not belong here, and synthetic textures.',
   ].join(' ');
 
@@ -156,7 +157,7 @@ export function buildSignatureLayer(
     `Capture one brief recognisable everyday moment from ${placeDescriptor}: ${detailPrompt}.`,
     specificityInstruction,
     'Render only the diegetic moment itself with no narrator, clean spoken phrase, recited text, quoted line, sung lyric, spoken introduction, announcer voice, or theatrical sting.',
-    'If people are present, keep them environmental and non-semantic, like a quick vendor cry or blurred nearby chatter, never a clearly isolated foreground speaker or intelligible sentence.',
+    'If people are present, keep them environmental and non-semantic, like a quick vendor cry, blurred nearby chatter, a distant station announcement, or far-off prayer texture, never a clearly isolated foreground speaker or intelligible sentence.',
     'Do not let any human vocal element read like text-to-speech, a language lesson, a voice note, or an obviously foreign spoken line for this location.',
     'It should feel locally grounded, naturally recorded, and never comedic.',
   ].join(' ');

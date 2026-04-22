@@ -29,6 +29,8 @@ export interface SoundscapeNarrativeAnchors {
   signature?: NarrativeAnchorCue;
   atmosphereTone?: string;
   specificityInstruction?: string;
+  fallbackReasonCode?: 'llm_unavailable' | 'llm_request_failed';
+  fallbackReason?: LocalizedCueLabel;
 }
 
 // === 层接口 ===

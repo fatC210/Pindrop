@@ -47,6 +47,7 @@ import {
 type SessionStatus = 'idle' | 'loading' | 'ready' | 'error';
 type GenerationJobStatus = 'resolving' | 'generating' | 'error';
 type NarrativeSource = 'llm' | 'rules';
+type LlmFallbackReason = 'llm_unavailable' | 'llm_request_failed';
 
 const INITIAL_PLAYBACK_STATE: PlaybackStateInfo = {
   state: 'idle',
@@ -74,6 +75,7 @@ interface GenerationJob {
   status: GenerationJobStatus;
   narrativeAnchors: SoundscapeRecipe['narrativeAnchors'] | null;
   narrativeSource: NarrativeSource | null;
+  llmFallbackReason: LlmFallbackReason | null;
   errorMessage: string | null;
   locationContext: LocationContext | null;
   displayLocale: AppLocale;
@@ -93,6 +95,8 @@ export interface SessionLocationEntry {
   progress: number;
   status: 'loading' | 'ready' | 'error';
   narrativeSource?: NarrativeSource | null;
+  llmFallbackReason?: LlmFallbackReason | null;
+  fallbackNotice?: string;
   statusLabel: string;
   errorMessage: string | null;
   isPlayable: boolean;
@@ -129,15 +133,46 @@ function isDisplayableSceneDescription(text: string): boolean {
   ].some((pattern) => pattern.test(normalized));
 }
 
-function getAlternateLocale(locale: AppLocale): AppLocale {
-  return locale === 'zh-CN' ? 'en' : 'zh-CN';
+function getCueLabelText(
+  cue: SoundscapeRecipe['narrativeAnchors'] extends { cues: Array<infer TCue> } ? TCue : never,
+  locale: AppLocale
+): string | undefined {
+  const primary = cue.label?.[locale]?.trim();
+  if (primary && textMatchesLocale(primary, locale)) {
+    return primary;
+  }
+
+  const prompt = cue.prompt?.trim();
+  if (prompt && textMatchesLocale(prompt, locale)) {
+    return prompt;
+  }
+
+  return undefined;
+}
+
+function buildCueListDescription(
+  narrativeAnchors: SoundscapeRecipe['narrativeAnchors'] | null | undefined,
+  locale: AppLocale
+): string | undefined {
+  const cues = narrativeAnchors?.cues ?? [];
+  const labels = cues
+    .map((cue) => getCueLabelText(cue, locale))
+    .filter((label): label is string => Boolean(label))
+    .map((label) => label.replace(/\s+/g, ' ').trim())
+    .filter((label, index, allLabels) => allLabels.indexOf(label) === index)
+    .slice(0, 4);
+
+  if (labels.length < 3) {
+    return undefined;
+  }
+
+  return labels.join(locale === 'zh-CN' ? '、' : ', ');
 }
 
 function getDisplayableNarrativeSummary(
   summary: SoundscapeRecipe['narrativeAnchors'] extends { summary: infer T } ? T : never,
   locale: AppLocale,
-  context?: LocationContext,
-  allowAlternateLocaleFallback = false
+  context?: LocationContext
 ): string | undefined {
   const candidate = summary?.[locale]?.trim();
   if (
@@ -149,26 +184,20 @@ function getDisplayableNarrativeSummary(
     return sanitized ?? candidate;
   }
 
-  if (!allowAlternateLocaleFallback) {
-    return undefined;
-  }
-
-  const alternateLocale = getAlternateLocale(locale);
-  const alternateCandidate = summary?.[alternateLocale]?.trim();
-  if (
-    alternateCandidate &&
-    textMatchesLocale(alternateCandidate, alternateLocale) &&
-    isDisplayableSceneDescription(alternateCandidate)
-  ) {
-    const sanitized = sanitizeNarrativeDisplayText(
-      alternateCandidate,
-      alternateLocale,
-      context
-    );
-    return sanitized ?? alternateCandidate;
-  }
-
   return undefined;
+}
+
+function getFallbackNotice(
+  narrativeAnchors: SoundscapeRecipe['narrativeAnchors'] | null | undefined,
+  locale: AppLocale
+): string | undefined {
+  const candidate = narrativeAnchors?.fallbackReason?.[locale]?.trim();
+  if (candidate) {
+    return candidate;
+  }
+
+  const alternateLocale = locale === 'zh-CN' ? 'en' : 'zh-CN';
+  return narrativeAnchors?.fallbackReason?.[alternateLocale]?.trim() || undefined;
 }
 
 export interface SessionMapPin {
@@ -235,6 +264,45 @@ function getSerializableErrorDetails(error: unknown): Record<string, unknown> {
   }
 
   return { value: error };
+}
+
+function getErrorMessageString(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (typeof error === 'string' && error.trim().length > 0) {
+    return error;
+  }
+
+  return '';
+}
+
+function createLlmFallbackReasonLabel(
+  locale: AppLocale,
+  reason: LlmFallbackReason,
+  detail?: string
+): { en: string; 'zh-CN': string } {
+  const trimmedDetail = detail?.trim();
+
+  if (reason === 'llm_request_failed' && trimmedDetail) {
+    return {
+      en: `Using fallback scene because the LLM request failed: ${trimmedDetail}`,
+      'zh-CN': `已因 LLM 请求失败回退到规则音景：${trimmedDetail}`,
+    };
+  }
+
+  if (reason === 'llm_request_failed') {
+    return {
+      en: 'Using fallback scene because the LLM request failed.',
+      'zh-CN': '已因 LLM 请求失败回退到规则音景。',
+    };
+  }
+
+  return {
+    en: 'Using fallback scene because the LLM did not return a usable place-specific narrative.',
+    'zh-CN': '已因 LLM 未返回可用的地点叙事而回退到规则音景。',
+  };
 }
 
 function stripSpeechLayers(blobs: AudioBlobMap): AudioBlobMap {
@@ -421,6 +489,7 @@ function createGenerationJob(
     status: 'resolving',
     narrativeAnchors: null,
     narrativeSource: null,
+    llmFallbackReason: null,
     errorMessage: null,
     locationContext: null,
     displayLocale,
@@ -687,13 +756,52 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           }
         }
 
-        const narrativeAnchors = await enrichSoundscapeNarrative(
-          location,
-          llmEnhancementConfig,
-          locale
-        );
-        if (!narrativeAnchors) {
-          throw new Error(messages.session.llmRequiredError);
+        let narrativeAnchors: SoundscapeRecipe['narrativeAnchors'] | null = null;
+        let narrativeSource: NarrativeSource = 'rules';
+        let llmFallbackReason: LlmFallbackReason | null = null;
+
+        try {
+          narrativeAnchors = await enrichSoundscapeNarrative(
+            location,
+            llmEnhancementConfig,
+            locale
+          );
+          if (narrativeAnchors?.source === 'llm') {
+            narrativeSource = 'llm';
+          } else if (!narrativeAnchors) {
+            llmFallbackReason = 'llm_unavailable';
+            console.warn('[PinDrop Warning] LLM narrative unavailable, falling back to rules:', {
+              jobId,
+              coordinates: { lat, lng },
+              message: messages.session.llmRequiredError,
+            });
+            narrativeAnchors = {
+              source: 'rules',
+              confidence: 0.58,
+              cues: [],
+              fallbackReasonCode: llmFallbackReason,
+              fallbackReason: createLlmFallbackReasonLabel(
+                locale,
+                llmFallbackReason,
+                messages.session.llmRequiredError
+              ),
+            };
+          }
+        } catch (error) {
+          llmFallbackReason = 'llm_request_failed';
+          const detail = getErrorMessageString(error);
+          console.warn('[PinDrop Warning] LLM narrative request failed, falling back to rules:', {
+            jobId,
+            coordinates: { lat, lng },
+            errorDetails: getSerializableErrorDetails(error),
+          });
+          narrativeAnchors = {
+            source: 'rules',
+            confidence: 0.58,
+            cues: [],
+            fallbackReasonCode: llmFallbackReason,
+            fallbackReason: createLlmFallbackReasonLabel(locale, llmFallbackReason, detail),
+          };
         }
 
         const recipe = generateRecipe(location, {
@@ -707,7 +815,8 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         updateGenerationJob(jobId, (job) => ({
           ...job,
           narrativeAnchors,
-          narrativeSource: 'llm',
+          narrativeSource,
+          llmFallbackReason,
           displayLocale: locale,
           progress: 76,
           status: 'generating',
@@ -783,7 +892,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
             ? error.message
             : fallbackMessage;
 
-        console.error('[PinDrop Error] Soundscape generation failed:', {
+        console.warn('[PinDrop Warning] Soundscape generation failed:', {
           jobId,
           coordinates: { lat, lng },
           message: nextMessage,
@@ -894,14 +1003,15 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
 
       const llmNarrativeAnchors =
         narrativeAnchors?.source === 'llm' ? narrativeAnchors : undefined;
-      const sceneDescription = llmNarrativeAnchors?.summary
-        ? getDisplayableNarrativeSummary(
-            llmNarrativeAnchors.summary,
-            displayLocale,
-            locationContext,
-            allowAlternateLocaleFallback
-          )
-        : undefined;
+      const sceneDescription =
+        buildCueListDescription(llmNarrativeAnchors, displayLocale) ??
+        (llmNarrativeAnchors?.summary
+          ? getDisplayableNarrativeSummary(
+              llmNarrativeAnchors.summary,
+              displayLocale,
+              locationContext
+            )
+          : undefined);
 
       return {
         sceneDescription,
@@ -917,7 +1027,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       const isError = job.status === 'error';
       const narrative = describeLocationContext(
         job.locationContext,
-        job.displayLocale,
+        locale,
         false,
         job.narrativeAnchors
       );
@@ -937,6 +1047,8 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           progress: job.progress,
           status: isError ? ('error' as const) : ('loading' as const),
           narrativeSource: job.narrativeSource,
+          llmFallbackReason: job.llmFallbackReason,
+          fallbackNotice: getFallbackNotice(job.narrativeAnchors, locale),
           statusLabel: isError
             ? job.errorMessage ?? messages.session.generationFailed
             : job.status === 'resolving'
@@ -956,7 +1068,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         const displayLocale = recipe?.interfaceLocale ?? locale;
         const narrative = describeLocationContext(
           recipe?.location ?? null,
-          displayLocale,
+          locale,
           !recipe?.interfaceLocale,
           recipe?.narrativeAnchors
         );
@@ -975,7 +1087,12 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           createdAt: entry.generatedAt,
           progress: 100,
           status: 'ready',
-          narrativeSource: recipe?.narrativeAnchors?.source === 'llm' ? 'llm' : null,
+          narrativeSource: recipe?.narrativeAnchors?.source ?? null,
+          llmFallbackReason:
+            recipe?.narrativeAnchors?.source === 'rules'
+              ? recipe.narrativeAnchors.fallbackReasonCode ?? null
+              : null,
+          fallbackNotice: getFallbackNotice(recipe?.narrativeAnchors, locale),
           statusLabel:
             playbackState.soundscapeId === entry.id && playbackState.state === 'playing'
               ? messages.home.playbackStatus.playing

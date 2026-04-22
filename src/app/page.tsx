@@ -492,6 +492,10 @@ export default function Home(): React.JSX.Element {
                       <p className={styles.locationMeta}>{entry.sceneDescription}</p>
                     ) : null}
 
+                    {entry.fallbackNotice ? (
+                      <p className={styles.locationFallbackNotice}>{entry.fallbackNotice}</p>
+                    ) : null}
+
                     {isReadyEntry ? (
                       <div className={styles.playbackRow}>
                         <button
@@ -573,7 +577,7 @@ export default function Home(): React.JSX.Element {
                       </div>
                     ) : null}
 
-                    {!isReadyEntry && !isLoadingEntry ? (
+                    {!isReadyEntry && !isLoadingEntry && entry.status !== 'error' ? (
                       <div className={styles.locationActions}>
                         <button
                           type="button"

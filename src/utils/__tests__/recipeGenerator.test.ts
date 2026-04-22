@@ -414,10 +414,15 @@ describe('generateRecipe', () => {
     expect(recipe.layers.ambient.prompt).toContain('recited description');
     expect(recipe.layers.ambient.prompt).toContain('sung lyrics');
     expect(recipe.layers.ambient.prompt).toContain('news-style readout');
+    expect(recipe.layers.ambient.prompt).toContain('compact palette of 2 to 4 vivid, place-credible sound anchors');
+    expect(recipe.layers.ambient.prompt).toContain('distant station announcements');
+    expect(recipe.layers.ambient.prompt).toContain('far-off prayer');
     expect(recipe.layers.ambient.prompt).toContain('Never let any foreground voice become clearly intelligible');
     expect(recipe.layers.signature.prompt).toContain('clean spoken phrase');
     expect(recipe.layers.signature.prompt).toContain('recited text');
     expect(recipe.layers.signature.prompt).toContain('sung lyric');
+    expect(recipe.layers.signature.prompt).toContain('distant station announcement');
+    expect(recipe.layers.signature.prompt).toContain('far-off prayer texture');
     expect(recipe.layers.signature.prompt).toContain('text-to-speech');
   });
 

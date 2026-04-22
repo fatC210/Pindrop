@@ -118,6 +118,13 @@ const DISCOURAGED_SPEECH_PATTERNS = [
   /\b(?:says?|saying|said|shouts?|yells?|announces?|reads?|reading|counts?)\b/i,
 ];
 
+const AMBIENT_HUMAN_TEXTURE_ALLOWLIST = [
+  /\b(?:distant|far(?:away)?|blurred|diffuse|faint|soft|low|background|environmental|passing|overhead|through)\s+(?:announcement|announcements|call to prayer|prayer|whisper|whispers|murmur|murmurs|chants?)\b/i,
+  /\b(?:station|platform|train|metro|subway)\s+(?:announcement|announcements)\b/i,
+  /\b(?:convenience store|shop|store)\s+(?:chime|bell|door chime|entry chime)\b/i,
+  /\b(?:call to prayer|adhan)\b/i,
+];
+
 function normalizeCuePrompt(prompt: string): string {
   return prompt
     .replace(/\bconversation\b/gi, 'human murmur')
@@ -137,6 +144,10 @@ function normalizeCuePrompt(prompt: string): string {
 function isDisallowedSpeechCue(prompt: string, context?: LocationContext): boolean {
   if (!prompt.trim()) {
     return true;
+  }
+
+  if (AMBIENT_HUMAN_TEXTURE_ALLOWLIST.some((pattern) => pattern.test(prompt))) {
+    return false;
   }
 
   if (DISCOURAGED_SPEECH_PATTERNS.some((pattern) => pattern.test(prompt))) {
@@ -159,9 +170,10 @@ function isDisallowedSpeechCue(prompt: string, context?: LocationContext): boole
   return false;
 }
 
-const DISPLAY_FRAGMENT_LIMIT = 3;
+const DISPLAY_FRAGMENT_LIMIT = 4;
 const DISPLAY_MAX_EN_WORDS = 48;
 const DISPLAY_MAX_ZH_CHARS = 84;
+const MAX_NARRATIVE_CUES = 4;
 
 const PREFERRED_NARRATIVE_SECTION_PATTERNS = [
   /\bbrainstorm audible details\b/i,
@@ -410,11 +422,38 @@ function collapseInlineEnumerations(content: string): string {
   return content.replace(/(?:^|\s)\d+\s*[\).:]\s+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function stripLeadCueConnector(content: string): string {
+  return content
+    .trim()
+    .replace(/^(?:and|with|plus|then)\b\s*/i, '')
+    .replace(/^(?:while|as)\b\s*/i, '')
+    .replace(/^(?:和|与|及|还有|伴着|夹着|连着)/, '')
+    .trim();
+}
+
 function splitNarrativeFragments(content: string): string[] {
   return content
     .split(/(?<=[.!?;銆傦紒锛燂紱])(?:\s+|$)/)
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
+}
+
+function splitCueCandidates(content: string): string[] {
+  const coarseFragments = content
+    .split(/[.!?;銆傦紒锛燂紱]+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  const expanded = coarseFragments.flatMap((fragment) =>
+    fragment
+      .split(/[，,、]+/)
+      .flatMap((part) => part.split(/\s+(?:while|as)\s+/i))
+      .flatMap((part) => part.split(/\s+\band\b\s+/i))
+      .map((part) => stripLeadCueConnector(part))
+      .filter((part) => part.length >= 3)
+  );
+
+  return dedupeComparableText(expanded);
 }
 
 function isLikelyAudibleFragment(
@@ -801,8 +840,8 @@ function normalizeSummary(
   }
 
   return {
-    en: normalizedSummaryEn || normalizedSummaryZhCn,
-    'zh-CN': normalizedSummaryZhCn || normalizedSummaryEn,
+    en: normalizedSummaryEn,
+    'zh-CN': normalizedSummaryZhCn,
   };
 }
 
@@ -820,7 +859,7 @@ function normalizeAnchors(
     .map((cue) => normalizeCue(cue))
     .filter((cue): cue is NarrativeAnchorCue => cue !== null)
     .filter((cue) => !isDisallowedSpeechCue(cue.prompt, context))
-    .slice(0, 3);
+    .slice(0, MAX_NARRATIVE_CUES);
 
   const signatureCandidate = normalizeCue(payload.signature);
   const signature =
@@ -957,10 +996,12 @@ function buildMessages(
       ? 'Target roughly 24 to 50 Chinese characters when possible.'
       : 'Target roughly 12 to 30 words when possible.',
     'One or two sentences is enough.',
-    'Use concrete audible details so a listener can compare the paragraph with the generated audio.',
+    'Use 3 to 4 concrete audible details so a listener can compare the paragraph with the generated audio.',
+    'Make the 3 to 4 sound anchors clearly separable as short clauses or short sentences.',
+    'Prefer a compact sound palette made of specific hearable elements such as wind, insects, waves, traffic, footsteps, bells, birds, engines, shutters, chimes, or one plausible distant human texture.',
     'Do not invent landmarks, festivals, narration, announcer intros, dialogue scripts, bullets, drafts, or numbered headings.',
     'Do not describe a narrator, monologue, spoken intro, voice-over, announcer, quoted speech, readout, recited line, or any clearly intelligible foreground speech.',
-    'Environmental human sound is allowed only as indistinct local background texture such as vendor calls, crowd wash, or passersby murmur, never as a clear solo voice or obvious TTS phrase.',
+    'Environmental human sound is allowed as distant or blurred local background texture, such as crowd wash, passersby murmur, a station announcement, a call to prayer, or low whispers, but never as a clear solo voice or obvious TTS phrase.',
     'Do not reply with the place name, its translation, coordinates, or an administrative hierarchy by itself.',
   ].join(' ');
 
@@ -968,13 +1009,16 @@ function buildMessages(
     'Requirements:',
     '- Output only the final short display paragraph, with no thinking process or analysis.',
     '- Describe concrete audible details with local character.',
-    '- Prioritize markets, rivers, parks, shops, water, vehicles, and everyday routines when relevant.',
+    '- Prioritize 3 to 4 specific sounds over broad scene-setting.',
+    '- Keep the sound anchors easy to separate into short clauses or short sentences.',
+    '- Prioritize markets, rivers, parks, shops, water, vehicles, weather, animals, transit, and everyday routines when relevant.',
     '- Keep it natural, specific, complete, and short.',
     '- Never output strings like "conversation 1", "Cues:", "Summary:", numbered scene headings, or spoken-intro scripts.',
     '- Avoid first-person or third-person narration about someone speaking; focus on environmental sound, movement, texture, and non-verbal ambience.',
-    '- If people are present, describe them as indistinct background human texture rather than intelligible speech, monologue, or quoted words.',
+    '- If people are present, describe them as distant, blurred, environmental human texture rather than intelligible speech, monologue, or quoted words.',
+    '- Distant local announcements, prayer, or whispers are acceptable only when they read as environmental texture and stay non-semantic.',
     '- Avoid language-specific spoken text, especially out-of-place English TTS for non-English locations such as places in China.',
-    '- Avoid long lists joined by commas.',
+    '- Avoid long lists joined by commas; choose a small set of vivid sound anchors instead.',
     '',
     `Location: ${buildLocationPrompt(context)}${buildContextPrompt(context)}`,
   ].join('\n');
@@ -1052,5 +1096,6 @@ export const __private__ = {
   parseJsonObject,
   normalizeAnchors,
   sanitizeNarrativeDisplayText,
+  splitCueCandidates,
   isDisplayableSummary,
 };

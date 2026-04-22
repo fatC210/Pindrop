@@ -298,7 +298,7 @@ export async function generateSoundscapeAudio(
   }
 
   if (failedLayers.length > 0) {
-    console.error('[PinDrop Error] ElevenLabs layer generation failed:', {
+    console.warn('[PinDrop Warning] ElevenLabs layer generation failed:', {
       recipeId: recipe.id,
       location: {
         cityName: recipe.location.cityName,

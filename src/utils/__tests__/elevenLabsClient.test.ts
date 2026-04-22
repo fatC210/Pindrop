@@ -204,7 +204,7 @@ describe('elevenLabsClient', () => {
           }
         )
       )
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const result = await generateSoundscapeAudio(
       createRecipe({
@@ -225,15 +225,15 @@ describe('elevenLabsClient', () => {
     expect(result.failureMessages.atmosphere).toContain(
       'Music generation is not enabled for this account.'
     );
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '[PinDrop Error] ElevenLabs layer generation failed:',
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[PinDrop Warning] ElevenLabs layer generation failed:',
       expect.objectContaining({
         recipeId: 'recipe-1',
         failedLayers: expect.arrayContaining(['ambient', 'atmosphere']),
       })
     );
 
-    consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
   });
 
   test('throws a clear error when the API key is missing', async () => {
