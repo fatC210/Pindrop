@@ -7,6 +7,7 @@
  * 需求覆盖: 1.1-1.8, 12.3
  */
 
+import type { AppLocale } from '@/i18n/types';
 import type { LocationContext } from '@/types/locationContext';
 import type { TimeSlot } from '@/utils/timeSlot';
 
@@ -154,6 +155,10 @@ export interface SoundscapeRecipe {
   timeInterpolation: TimeInterpolation;
   /** Optional narrative anchors used to make the prompts more place-specific */
   narrativeAnchors?: SoundscapeNarrativeAnchors;
+  /** Prompt/rule generation version for cache compatibility checks */
+  promptVersion?: number;
+  /** Interface locale active when this card was first generated */
+  interfaceLocale?: AppLocale;
 }
 
 // === 声景模板 ===

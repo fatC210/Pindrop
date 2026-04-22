@@ -404,6 +404,7 @@ describe('generateRecipe', () => {
     expect(recipe.layers.atmosphere.prompt).toContain('Do not open with a spoken monologue');
     expect(recipe.layers.atmosphere.prompt).toContain('sung topline');
     expect(recipe.layers.atmosphere.prompt).toContain('no dramatic intro swell');
+    expect(recipe.layers.atmosphere.prompt).toContain('obvious TTS flavor');
   });
 
   it('ambient and signature prompts should explicitly forbid recited or sung text', () => {
@@ -412,9 +413,18 @@ describe('generateRecipe', () => {
     expect(recipe.layers.ambient.prompt).toContain('No detached narrator');
     expect(recipe.layers.ambient.prompt).toContain('recited description');
     expect(recipe.layers.ambient.prompt).toContain('sung lyrics');
+    expect(recipe.layers.ambient.prompt).toContain('news-style readout');
+    expect(recipe.layers.ambient.prompt).toContain('Never let any foreground voice become clearly intelligible');
     expect(recipe.layers.signature.prompt).toContain('clean spoken phrase');
     expect(recipe.layers.signature.prompt).toContain('recited text');
     expect(recipe.layers.signature.prompt).toContain('sung lyric');
+    expect(recipe.layers.signature.prompt).toContain('text-to-speech');
+  });
+
+  it('stores the current prompt version on generated recipes for cache compatibility', () => {
+    const recipe = generateRecipe(PARIS_CONTEXT);
+
+    expect(recipe.promptVersion).toBe(2);
   });
 
   // --- 无对话区域静默规则 ---

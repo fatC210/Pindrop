@@ -54,12 +54,72 @@ describe('llmAnchorEnricher', () => {
     expect(systemMessage).toContain('Target roughly 24 to 50 Chinese characters');
     expect(systemMessage).toContain('One or two sentences is enough.');
     expect(systemMessage).toContain('Do not reply with the place name');
+    expect(systemMessage).toContain('Environmental human sound is allowed only as indistinct local background texture');
     expect(userMessage).toContain('Output only the final short display paragraph');
     expect(userMessage).toContain('Keep it natural, specific, complete, and short.');
     expect(userMessage).toContain('Avoid long lists joined by commas.');
     expect(userMessage).toContain('Never output strings like "conversation 1", "Cues:", "Summary:"');
+    expect(userMessage).toContain('Avoid language-specific spoken text');
     expect(userMessage).toContain('Location: Georgia, Imereti, Kutaisi');
     expect(userMessage).toContain('Context: time: day; terrain: river; near water: river');
+  });
+
+  it('normalizes speech-heavy cue wording into less semantic background-human descriptions', () => {
+    expect(
+      __private__.normalizeAnchors(
+        {
+          cues: [
+            {
+              prompt_en: 'park-edge conversation and one quick market greeting',
+              label_en: 'park-edge conversation',
+            },
+          ],
+        },
+        {
+          ...SAMPLE_CONTEXT,
+          cityName: 'Hangzhou',
+          countryName: 'China',
+          languageVariant: 'zh-CN',
+        }
+      )
+    ).toMatchObject({
+      cues: [
+        {
+          prompt: 'park-edge human murmur and one quick market indistinct local calls',
+        },
+      ],
+    });
+  });
+
+  it('drops cues that explicitly ask for intelligible English speech in a Chinese context', () => {
+    expect(
+      __private__.normalizeAnchors(
+        {
+          cues: [
+            {
+              prompt_en: 'clear English TTS voice reading a welcome line in the foreground',
+              label_en: 'english tts',
+            },
+            {
+              prompt_en: 'street vendors, bowls, and scooter movement',
+              label_en: 'street vendors and scooters',
+            },
+          ],
+        },
+        {
+          ...SAMPLE_CONTEXT,
+          cityName: 'Beijing',
+          countryName: 'China',
+          languageVariant: 'zh-CN',
+        }
+      )
+    ).toMatchObject({
+      cues: [
+        {
+          prompt: 'street vendors, bowls, and scooter movement',
+        },
+      ],
+    });
   });
 
   it('parses a JSON code fence and normalizes the returned anchors even without confidence', async () => {
@@ -637,5 +697,44 @@ describe('llmAnchorEnricher', () => {
     expect(result?.summary?.['zh-CN']).toContain(result?.cues?.[1]?.prompt ?? '');
     expect(result?.summary?.['zh-CN']).not.toContain('Analyze the Request');
     expect(result?.summary?.['zh-CN']).not.toContain('raw:');
+  });
+
+  it('prefers the last usable draft and trims prompt instructions from freeform summaries', () => {
+    const content = `Dusk wind sweeps the plain as yaks low in the distance. A passing motorcycle rumbles while a nearby stream murmurs softly near closing shops. (24 words)
+
+*Draft 2:* Evening wind sweeps the high plain as yaks low softly. A distant motorcycle rumbles past closing shops while a cold stream murmurs nearby. (23 words)
+
+*Draft 3:* Wind sweeps the dusk plain as yaks low in the distance. A motorcycle rumbles past closing storefronts while a nearby stream murmurs softly. Generate a short place-specific soundscape description for a task card. Return only the final body text, no JSON, no markdown, no code fences, no labels, no extra explanation. One short natural-language paragraph (1-2 sentences, 12-30 words). Dusk, plain, temperate, town, zh-CN.
+
+*Sêrxong (色雄):* A small town/township in Amdo Tibet (Qinghai province, roughly).`;
+
+    expect(
+      __private__.normalizeFreeformAnchors(content, 'en', {
+        ...SAMPLE_CONTEXT,
+        administrativeRegionName: 'Tibet Autonomous Region',
+        cityName: 'Sexiong',
+        regionName: 'Sêrxong',
+        countryName: 'China',
+        regionType: 'town',
+        terrain: 'plain',
+        climate: 'temperate',
+        timeSlot: 'dusk',
+      })
+    ).toMatchObject({
+      source: 'llm',
+      summary: {
+        en:
+          'Wind sweeps the dusk plain as yaks low in the distance. A motorcycle rumbles past closing storefronts while a nearby stream murmurs softly.',
+        'zh-CN': '',
+      },
+      cues: [
+        {
+          prompt: 'Wind sweeps the dusk plain as yaks low in the distance',
+        },
+        {
+          prompt: 'A motorcycle rumbles past closing storefronts while a nearby stream murmurs softly',
+        },
+      ],
+    });
   });
 });

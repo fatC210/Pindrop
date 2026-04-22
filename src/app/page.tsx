@@ -397,8 +397,9 @@ export default function Home(): React.JSX.Element {
                 const isPausedLocation =
                   isActiveLocation && session.playbackState.state === 'paused';
 
+                const displayLocale = entry.displayLocale ?? locale;
                 const localizedLabel = localizedLocationLabels[entry.id];
-                const title = formatLocationTitle(entry, localizedLabel, locale);
+                const title = formatLocationTitle(entry, localizedLabel, displayLocale);
 
                 const statusLabel =
                   entry.status === 'error'

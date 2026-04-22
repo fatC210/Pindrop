@@ -108,9 +108,14 @@ vi.mock('@/utils/elevenLabsClient', () => ({
   generateSoundscapeAudio: mockGenerateSoundscapeAudio,
 }));
 
-vi.mock('@/utils/soundscape/llmAnchorEnricher', () => ({
-  enrichSoundscapeNarrative: mockEnrichSoundscapeNarrative,
-}));
+vi.mock('@/utils/soundscape/llmAnchorEnricher', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/soundscape/llmAnchorEnricher')>();
+
+  return {
+    ...actual,
+    enrichSoundscapeNarrative: mockEnrichSoundscapeNarrative,
+  };
+});
 
 vi.mock('@/utils/soundscapeCache', () => ({
   cacheSoundscape: mockCacheSoundscape,
@@ -319,6 +324,8 @@ function createCachedSoundscape() {
           },
         ],
       },
+      promptVersion: 2,
+      interfaceLocale: 'en',
     },
   };
 }
@@ -565,6 +572,7 @@ describe('useSoundscapeSession deletion flow', () => {
     await waitFor(() => {
       expect(mockGenerateRecipe).toHaveBeenCalledWith(location, {
         narrativeAnchors: anchors,
+        interfaceLocale: 'en',
       });
     });
     expect(mockEnrichSoundscapeNarrative).toHaveBeenCalledWith(
@@ -640,6 +648,10 @@ describe('useSoundscapeSession deletion flow', () => {
       expect.objectContaining({
         message:
           'Ambient generation failed: ElevenLabs request failed (429): quota exceeded | Atmosphere generation failed: ElevenLabs request failed (403): plan upgrade required',
+        errorDetails: expect.objectContaining({
+          message:
+            'Ambient generation failed: ElevenLabs request failed (429): quota exceeded | Atmosphere generation failed: ElevenLabs request failed (403): plan upgrade required',
+        }),
       })
     );
 
@@ -764,7 +776,7 @@ describe('useSoundscapeSession deletion flow', () => {
     });
 
     expect(result.current.locationEntries[0]?.sceneDescription).toContain(
-      '\u6cb3\u5cb8\u65e7\u4e66\u644a'
+      'A riverside bookseller is setting out paperbacks'
     );
   });
 
@@ -775,6 +787,7 @@ describe('useSoundscapeSession deletion flow', () => {
         ...createCachedSoundscape(),
         recipe: {
           ...createCachedSoundscape().recipe,
+          interfaceLocale: undefined,
           narrativeAnchors: {
             ...createCachedSoundscape().recipe.narrativeAnchors,
             summary: {
@@ -796,6 +809,65 @@ describe('useSoundscapeSession deletion flow', () => {
     expect(result.current.locationEntries[0]?.sceneDescription).toContain(
       '\u6cb3\u5cb8\u65e7\u4e66\u644a'
     );
+  });
+
+  test('pins a newly generated card to the interface locale that was active at generation time', async () => {
+    mockLocaleState.value = 'zh-CN';
+    const deferredAudio = createDeferred<{ blobs: { ambient: Blob } }>();
+    mockResolveLocation.mockResolvedValue(createLocationContext({
+      cityName: 'Shitan',
+      regionName: 'Xiangtan County',
+      countryName: 'China',
+      cultureRegion: 'east_asia',
+      regionType: 'town',
+      administrativeRegionName: 'Hunan',
+    }));
+    mockEnrichSoundscapeNarrative.mockResolvedValue({
+      source: 'llm',
+      confidence: 0.82,
+      summary: {
+        en: 'A stream moves beside the lane while a scooter passes the closing shops.',
+        'zh-CN': '\u6eaa\u6c34\u5728\u8857\u5df7\u4e00\u4fa7\u6d41\u8fc7\uff0c\u4e00\u8f86\u6469\u6258\u8f66\u63a0\u8fc7\u5c06\u8981\u6253\u70ca\u7684\u5c0f\u5e97\u3002',
+      },
+      cues: [
+        {
+          prompt: 'stream water and one scooter passing near closing shops',
+          label: {
+            en: 'stream water and a scooter',
+            'zh-CN': '\u6eaa\u6c34\u4e0e\u6469\u6258\u8f66\u58f0',
+          },
+        },
+      ],
+    });
+    mockGenerateSoundscapeAudio.mockReturnValue(deferredAudio.promise);
+
+    const { result, rerender } = renderHook(() => useSoundscapeSession());
+
+    await act(async () => {
+      await result.current.handleCoordinateSelect(27.83, 112.95);
+    });
+
+    await waitFor(() => {
+      expect(result.current.locationEntries.some((entry) => entry.status === 'loading')).toBe(true);
+    });
+
+    mockLocaleState.value = 'en';
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.locationEntries[0]?.displayLocale).toBe('zh-CN');
+      expect(result.current.locationEntries[0]?.sceneDescription).toContain('\u6eaa\u6c34');
+      expect(result.current.locationEntries[0]?.administrativeRegionName).toBe('Hunan');
+    });
+
+    await act(async () => {
+      deferredAudio.resolve({
+        blobs: {
+          ambient: new Blob(['ambient']),
+        },
+      });
+      await deferredAudio.promise;
+    });
   });
 
   test('does not show a description when cached LLM text does not match the interface language', async () => {
@@ -835,4 +907,35 @@ describe('useSoundscapeSession deletion flow', () => {
 
     expect(result.current.locationEntries[0]?.sceneDescription).toBeUndefined();
   });
+
+  test('re-sanitizes cached narrative summaries before showing them in the list', async () => {
+    mockLocaleState.value = 'en';
+    mockGetCachedMarkers.mockResolvedValue([
+      {
+        ...createCachedSoundscape(),
+        recipe: {
+          ...createCachedSoundscape().recipe,
+          narrativeAnchors: {
+            ...createCachedSoundscape().recipe.narrativeAnchors,
+            summary: {
+              en:
+                'Dusk wind sweeps the plain as yaks low in the distance. A passing motorcycle rumbles while a nearby stream murmurs softly near closing shops. *Draft 2:* Evening wind sweeps the high plain as yaks low softly. A distant motorcycle rumbles past closing shops while a cold stream murmurs nearby. *Draft 3:* Wind sweeps the dusk plain as yaks low in the distance. A motorcycle rumbles past closing storefronts while a nearby stream murmurs softly. Generate a short place-specific soundscape description for a task card. Return only the final body text, no JSON, no markdown.',
+              'zh-CN': '',
+            },
+          },
+        },
+      },
+    ]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toBe(
+      'Wind sweeps the dusk plain as yaks low in the distance. A motorcycle rumbles past closing storefronts while a nearby stream murmurs softly.'
+    );
+  });
+
 });

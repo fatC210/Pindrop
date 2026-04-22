@@ -144,7 +144,7 @@ const REGION_CUES: Record<RegionType, SoundCue[]> = {
 const CULTURE_CUES: Record<string, SoundCue[]> = {
   western_europe: [
     {
-      prompt: 'cafe terrace conversation, ceramic cups, and a soft door chime from a corner bakery or cafe',
+      prompt: 'cafe terrace murmur, ceramic cups, and a soft door chime from a corner bakery or cafe',
       label: { en: 'cafe terrace cups and chatter', 'zh-CN': '咖啡馆露台杯盘与交谈' },
     },
     {
@@ -154,7 +154,7 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   ],
   eastern_europe: [
     {
-      prompt: 'apartment courtyard voices and metal gates opening or closing',
+      prompt: 'apartment courtyard human murmur and metal gates opening or closing',
       label: { en: 'courtyard voices and gates', 'zh-CN': '院落人声与铁门声' },
     },
     {
@@ -165,7 +165,7 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   east_asia: [
     {
       prompt:
-        'a shop shutter rolling upward, folding stools scraping lightly, and park-edge conversation matched to the exact block',
+        'a shop shutter rolling upward, folding stools scraping lightly, and park-edge human murmur matched to the exact block',
       label: { en: 'a shop opening beside park-side talk', 'zh-CN': '卷闸门拉起与公园边闲谈声' },
     },
     {
@@ -180,7 +180,7 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
       label: { en: 'tea stall cups and scooters', 'zh-CN': '茶摊杯具与踏板车声' },
     },
     {
-      prompt: 'street-side conversation and utensils from everyday food preparation',
+      prompt: 'street-side human murmur and utensils from everyday food preparation',
       label: { en: 'street-side cooking sounds', 'zh-CN': '街边备餐器具声' },
     },
   ],
@@ -190,7 +190,7 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
       label: { en: 'food stalls and scooters', 'zh-CN': '路边摊与踏板车声' },
     },
     {
-      prompt: 'covered walkway voices and humid street activity kept light and continuous',
+      prompt: 'covered walkway human murmur and humid street activity kept light and continuous',
       label: { en: 'covered walkway voices', 'zh-CN': '骑楼或遮棚下的人声' },
     },
   ],
@@ -206,7 +206,7 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   ],
   north_africa: [
     {
-      prompt: 'tea glasses, hand carts over stone, and alley voices moving in and out of earshot',
+      prompt: 'tea glasses, hand carts over stone, and alley human murmur moving in and out of earshot',
       label: { en: 'tea glasses and alley carts', 'zh-CN': '茶杯与巷道手推车声' },
     },
     {
@@ -216,7 +216,7 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   ],
   sub_saharan_africa: [
     {
-      prompt: 'open-air market greetings, light motorbike movement, and nearby compound life',
+      prompt: 'open-air market calls kept indistinct, light motorbike movement, and nearby compound life',
       label: { en: 'market greetings and motorbikes', 'zh-CN': '集市招呼声与摩托声' },
     },
     {
@@ -226,7 +226,7 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   ],
   latin_america: [
     {
-      prompt: 'plaza conversation, bus brakes sighing, and street food griddle sounds',
+      prompt: 'plaza murmur, bus brakes sighing, and street food griddle sounds',
       label: { en: 'plaza talk and bus brakes', 'zh-CN': '广场交谈与公交刹车声' },
     },
     {
@@ -256,7 +256,7 @@ const CULTURE_CUES: Record<string, SoundCue[]> = {
   ],
   oceania: [
     {
-      prompt: 'cafe verandah talk, bicycles, and breezy waterfront routine where appropriate',
+      prompt: 'cafe verandah murmur, bicycles, and breezy waterfront routine where appropriate',
       label: { en: 'verandah talk and bicycles', 'zh-CN': '门廊交谈与单车声' },
     },
     {
@@ -297,7 +297,7 @@ const CULTURE_SIGNATURES: Record<string, SoundCue> = {
   },
   east_asia: {
     prompt:
-      'a street-side breakfast or snack stall rolling up its shutter, setting down bowls or chopsticks, and exchanging one quick local greeting',
+      'a street-side breakfast or snack stall rolling up its shutter, setting down bowls or chopsticks, and letting one quick local call blur into the background',
     label: { en: 'a street-side stall opening for the day', 'zh-CN': '街边小摊拉起卷闸门准备开张' },
   },
   south_asia: {
@@ -317,11 +317,11 @@ const CULTURE_SIGNATURES: Record<string, SoundCue> = {
     label: { en: 'cart wheels and tea glasses', 'zh-CN': '手推车与茶杯轻响声' },
   },
   sub_saharan_africa: {
-    prompt: 'a passing motorbike and a nearby market greeting caught in one moment',
+    prompt: 'a passing motorbike and one nearby market call caught as an indistinct moment',
     label: { en: 'a motorbike and market greeting', 'zh-CN': '摩托掠过与集市招呼声' },
   },
   latin_america: {
-    prompt: 'bus brakes easing to a stop while plaza conversation carries nearby',
+    prompt: 'bus brakes easing to a stop while plaza murmur carries nearby',
     label: { en: 'bus brakes by the plaza', 'zh-CN': '广场边的公交刹车声' },
   },
   north_america: {
@@ -333,7 +333,7 @@ const CULTURE_SIGNATURES: Record<string, SoundCue> = {
     label: { en: 'bazaar fabric and tea cups', 'zh-CN': '市集布料与茶杯放下声' },
   },
   oceania: {
-    prompt: 'verandah conversation with a bicycle and a breezy rope strain near the water',
+    prompt: 'verandah murmur with a bicycle and a breezy rope strain near the water',
     label: { en: 'verandah voices and dock ropes', 'zh-CN': '门廊人声与码头缆绳声' },
   },
   arctic: {
@@ -359,7 +359,7 @@ const PLACE_SOUND_ANCHORS: PlaceSoundAnchor[] = [
     cues: [
       {
         prompt:
-          'a Beijing street vendor calling out for candied hawthorn skewers, the familiar "bing tang hu lu" cry drifting through a hutong-side lane or park entrance',
+          'a Beijing street vendor presence around candied hawthorn skewers, with the familiar bing tang hu lu hawker texture staying natural, brief, and not fully intelligible',
         label: {
           en: 'an elder hawking candied hawthorn by bicycle',
           'zh-CN': '老人骑车叫卖冰糖葫芦',
@@ -367,7 +367,7 @@ const PLACE_SOUND_ANCHORS: PlaceSoundAnchor[] = [
       },
       {
         prompt:
-          'older men laughing, commenting, and tapping xiangqi pieces on a park-side table',
+          'older men laughing softly and tapping xiangqi pieces on a park-side table, with no isolated intelligible remarks',
         label: { en: 'park-side xiangqi laughter', 'zh-CN': '公园里下象棋落子和笑谈声' },
       },
       {
@@ -378,7 +378,7 @@ const PLACE_SOUND_ANCHORS: PlaceSoundAnchor[] = [
     ],
     signature: {
       prompt:
-        'a familiar Beijing hawker cry for candied hawthorn skewers passing once at natural street distance',
+        'a familiar Beijing hawker texture for candied hawthorn skewers passing once at natural street distance, brief and not fully intelligible',
       label: {
         en: 'a Beijing candied hawthorn cry passing once',
         'zh-CN': '一声从胡同口掠过的冰糖葫芦叫卖',
@@ -402,7 +402,7 @@ const PLACE_SOUND_ANCHORS: PlaceSoundAnchor[] = [
       },
       {
         prompt:
-          'soft boatman calls and gentle passenger movement on the river kept natural and unhurried',
+          'soft boatman presence and gentle passenger movement on the river kept natural, unhurried, and not fully intelligible',
         label: { en: 'soft boatman calls on the river', 'zh-CN': '江面轻微的船家招呼声' },
       },
     ],

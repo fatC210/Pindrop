@@ -14,6 +14,8 @@ interface PinDropDB extends DBSchema {
       timeSlot: 'dawn' | 'day' | 'dusk' | 'night';
       cityName: string;
       countryName: string;
+      administrativeRegionName?: string;
+      regionName?: string;
       generatedAt: number;
       playCount: number;
       lastPlayedAt: number;

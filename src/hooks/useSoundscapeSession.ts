@@ -39,7 +39,10 @@ import { addLocationHistory } from '@/utils/locationHistory';
 import { generateCacheKey } from '@/utils/cacheKey';
 import { hasApiKey } from '@/utils/apiHeaders';
 import type { TimeSlot } from '@/utils/timeSlot';
-import { enrichSoundscapeNarrative } from '@/utils/soundscape/llmAnchorEnricher';
+import {
+  enrichSoundscapeNarrative,
+  sanitizeNarrativeDisplayText,
+} from '@/utils/soundscape/llmAnchorEnricher';
 
 type SessionStatus = 'idle' | 'loading' | 'ready' | 'error';
 type GenerationJobStatus = 'resolving' | 'generating' | 'error';
@@ -73,12 +76,14 @@ interface GenerationJob {
   narrativeSource: NarrativeSource | null;
   errorMessage: string | null;
   locationContext: LocationContext | null;
+  displayLocale: AppLocale;
 }
 
 export interface SessionLocationEntry {
   id: string;
   cacheKey: string | null;
   coordinates: [number, number];
+  displayLocale?: AppLocale;
   administrativeRegionName?: string;
   cityName: string;
   regionName?: string;
@@ -130,22 +135,37 @@ function getAlternateLocale(locale: AppLocale): AppLocale {
 
 function getDisplayableNarrativeSummary(
   summary: SoundscapeRecipe['narrativeAnchors'] extends { summary: infer T } ? T : never,
-  locale: AppLocale
+  locale: AppLocale,
+  context?: LocationContext,
+  allowAlternateLocaleFallback = false
 ): string | undefined {
-  const localesToTry: AppLocale[] = [locale, getAlternateLocale(locale)];
+  const candidate = summary?.[locale]?.trim();
+  if (
+    candidate &&
+    textMatchesLocale(candidate, locale) &&
+    isDisplayableSceneDescription(candidate)
+  ) {
+    const sanitized = sanitizeNarrativeDisplayText(candidate, locale, context);
+    return sanitized ?? candidate;
+  }
 
-  for (const candidateLocale of localesToTry) {
-    const candidate = summary?.[candidateLocale]?.trim();
-    if (!candidate) {
-      continue;
-    }
+  if (!allowAlternateLocaleFallback) {
+    return undefined;
+  }
 
-    if (
-      textMatchesLocale(candidate, candidateLocale) &&
-      isDisplayableSceneDescription(candidate)
-    ) {
-      return candidate;
-    }
+  const alternateLocale = getAlternateLocale(locale);
+  const alternateCandidate = summary?.[alternateLocale]?.trim();
+  if (
+    alternateCandidate &&
+    textMatchesLocale(alternateCandidate, alternateLocale) &&
+    isDisplayableSceneDescription(alternateCandidate)
+  ) {
+    const sanitized = sanitizeNarrativeDisplayText(
+      alternateCandidate,
+      alternateLocale,
+      context
+    );
+    return sanitized ?? alternateCandidate;
   }
 
   return undefined;
@@ -183,6 +203,38 @@ function coerceRecipe(recipe: unknown): SoundscapeRecipe | null {
 
 function getSoundscapeSizeBytes(blobs: AudioBlobMap): number {
   return Object.values(blobs).reduce((total, blob) => total + (blob?.size ?? 0), 0);
+}
+
+function getSerializableErrorDetails(error: unknown): Record<string, unknown> {
+  if (error instanceof AggregateError) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      errors: error.errors.map((nestedError) => getSerializableErrorDetails(nestedError)),
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      ...(error.cause !== undefined
+        ? { cause: getSerializableErrorDetails(error.cause) }
+        : {}),
+    };
+  }
+
+  if (typeof error === 'string') {
+    return { value: error };
+  }
+
+  if (error && typeof error === 'object') {
+    return { ...error };
+  }
+
+  return { value: error };
 }
 
 function stripSpeechLayers(blobs: AudioBlobMap): AudioBlobMap {
@@ -349,7 +401,11 @@ function formatCoordinateFallback([lat, lng]: [number, number]): string {
   return `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
 }
 
-function createGenerationJob(lat: number, lng: number): GenerationJob {
+function createGenerationJob(
+  lat: number,
+  lng: number,
+  displayLocale: AppLocale
+): GenerationJob {
   return {
     id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     coordinateToken: createCoordinateToken(lat, lng),
@@ -367,6 +423,7 @@ function createGenerationJob(lat: number, lng: number): GenerationJob {
     narrativeSource: null,
     errorMessage: null,
     locationContext: null,
+    displayLocale,
   };
 }
 
@@ -639,7 +696,10 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           throw new Error(messages.session.llmRequiredError);
         }
 
-        const recipe = generateRecipe(location, { narrativeAnchors });
+        const recipe = generateRecipe(location, {
+          narrativeAnchors,
+          interfaceLocale: locale,
+        });
         if (isGenerationJobCancelled(jobId)) {
           return;
         }
@@ -648,6 +708,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           ...job,
           narrativeAnchors,
           narrativeSource: 'llm',
+          displayLocale: locale,
           progress: 76,
           status: 'generating',
         }));
@@ -674,7 +735,9 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           id: cacheKey,
           coordinates: recipe.location.coordinates,
           timeSlot: recipe.location.timeSlot,
+          administrativeRegionName: recipe.location.administrativeRegionName,
           cityName: recipe.location.cityName,
+          regionName: recipe.location.regionName,
           countryName: recipe.location.countryName,
           generatedAt: recipe.generatedAt,
           playCount: 0,
@@ -688,7 +751,9 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         await cacheSoundscape(cacheKey, {
           coordinates: nextCachedEntry.coordinates,
           timeSlot: nextCachedEntry.timeSlot,
+          administrativeRegionName: nextCachedEntry.administrativeRegionName,
           cityName: nextCachedEntry.cityName,
+          regionName: nextCachedEntry.regionName,
           countryName: nextCachedEntry.countryName,
           generatedAt: nextCachedEntry.generatedAt,
           playCount: nextCachedEntry.playCount,
@@ -722,7 +787,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
           jobId,
           coordinates: { lat, lng },
           message: nextMessage,
-          error,
+          errorDetails: getSerializableErrorDetails(error),
         });
 
         updateGenerationJob(jobId, (job) => ({
@@ -761,11 +826,11 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
         return;
       }
 
-      const job = createGenerationJob(lat, lng);
+      const job = createGenerationJob(lat, lng, locale);
       setGenerationJobs((previous) => [job, ...previous]);
       void runGeneration(job.id, lat, lng);
     },
-    [hasGenerationConfiguration, runGeneration]
+    [hasGenerationConfiguration, locale, runGeneration]
   );
 
   const handleMarkerSelect = useCallback(
@@ -817,6 +882,8 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
   const describeLocationContext = useCallback(
     (
       locationContext: LocationContext | null,
+      displayLocale: AppLocale,
+      allowAlternateLocaleFallback: boolean,
       narrativeAnchors?: SoundscapeRecipe['narrativeAnchors'] | null
     ): Pick<SessionLocationEntry, 'sceneDescription'> => {
       if (!locationContext) {
@@ -828,14 +895,19 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       const llmNarrativeAnchors =
         narrativeAnchors?.source === 'llm' ? narrativeAnchors : undefined;
       const sceneDescription = llmNarrativeAnchors?.summary
-        ? getDisplayableNarrativeSummary(llmNarrativeAnchors.summary, locale)
+        ? getDisplayableNarrativeSummary(
+            llmNarrativeAnchors.summary,
+            displayLocale,
+            locationContext,
+            allowAlternateLocaleFallback
+          )
         : undefined;
 
       return {
         sceneDescription,
       };
     },
-    [locale]
+    []
   );
 
   const locationEntries = useMemo<SessionLocationEntry[]>(() => {
@@ -843,12 +915,18 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       const cityName = job.cityName ?? formatCoordinateFallback(job.coordinates);
       const countryName = job.countryName ?? '';
       const isError = job.status === 'error';
-      const narrative = describeLocationContext(job.locationContext, job.narrativeAnchors);
+      const narrative = describeLocationContext(
+        job.locationContext,
+        job.displayLocale,
+        false,
+        job.narrativeAnchors
+      );
 
         return {
           id: job.id,
           cacheKey: job.cacheKey,
         coordinates: job.coordinates,
+        displayLocale: job.displayLocale,
         administrativeRegionName:
           job.administrativeRegionName ?? job.locationContext?.administrativeRegionName,
         cityName,
@@ -875,15 +953,23 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
       .filter((entry) => hasContinuousBedBlob(entry.audioBlobs))
       .map((entry) => {
         const recipe = coerceRecipe(entry.recipe);
-        const narrative = describeLocationContext(recipe?.location ?? null, recipe?.narrativeAnchors);
+        const displayLocale = recipe?.interfaceLocale ?? locale;
+        const narrative = describeLocationContext(
+          recipe?.location ?? null,
+          displayLocale,
+          !recipe?.interfaceLocale,
+          recipe?.narrativeAnchors
+        );
 
         return {
           id: entry.id,
           cacheKey: entry.id,
           coordinates: entry.coordinates,
-          administrativeRegionName: recipe?.location.administrativeRegionName,
+          displayLocale,
+          administrativeRegionName:
+            entry.administrativeRegionName ?? recipe?.location.administrativeRegionName,
           cityName: entry.cityName,
-          regionName: recipe?.location.regionName,
+          regionName: entry.regionName ?? recipe?.location.regionName,
           countryName: entry.countryName,
           timeSlot: entry.timeSlot,
           createdAt: entry.generatedAt,
@@ -909,6 +995,7 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
     cachedMarkers,
     describeLocationContext,
     generationJobs,
+    locale,
     messages,
     playbackState.soundscapeId,
     playbackState.state,

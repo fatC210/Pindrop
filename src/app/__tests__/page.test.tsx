@@ -736,4 +736,54 @@ describe('Home page history visibility', () => {
 
     expect(screen.getByText('中国，广东，肇庆，端州区')).not.toBeNull();
   });
+
+  test('renders a card title using the card display locale instead of the current interface locale', () => {
+    mockUseLocalizedLocationLabels.mockReturnValue({
+      'ready-cache': {
+        administrativeRegionName: '\u9655\u897f\u7701',
+        cityName: '\u78d0\u575d\u9547',
+        regionName: '',
+        countryName: '\u4e2d\u56fd',
+      },
+    });
+    mockUseSoundscapeSession.mockReturnValue(
+      createSessionResult({
+        hasConfiguredApiKey: true,
+        locationEntries: [
+          {
+            id: 'ready-cache',
+            cacheKey: 'ready-cache',
+            coordinates: [33.0, 107.0],
+            displayLocale: 'zh-CN',
+            administrativeRegionName: 'Shaanxi',
+            cityName: 'Badu',
+            regionName: '',
+            countryName: 'China',
+            timeSlot: 'dusk',
+            createdAt: 1,
+            progress: 100,
+            status: 'ready',
+            statusLabel: 'Ready',
+            errorMessage: null,
+            isPlayable: true,
+            sceneDescription: '\u6eaa\u6c34\u58f0\u5728\u8fd1\u5904\u9690\u7ea6\u53ef\u95fb\u3002',
+          },
+        ],
+        mapPins: [
+          {
+            id: 'ready-cache',
+            cacheKey: 'ready-cache',
+            coordinates: [33.0, 107.0],
+            isGenerating: false,
+            isSelectable: true,
+          },
+        ],
+      })
+    );
+
+    renderHome();
+
+    expect(screen.getByText('\u4e2d\u56fd\uff0c\u9655\u897f\u7701\uff0c\u78d0\u575d\u9547')).not.toBeNull();
+    expect(screen.queryByText('Badu, Shaanxi, China')).toBeNull();
+  });
 });

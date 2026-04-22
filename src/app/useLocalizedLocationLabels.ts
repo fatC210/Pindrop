@@ -16,15 +16,22 @@ export function useLocalizedLocationLabels(
   const [localizedLabels, setLocalizedLabels] = useState<Record<string, LocalizedPlaceName>>({});
 
   const lookupEntries = useMemo(
-    () => entries.map(({ id, coordinates }) => ({ id, coordinates })),
-    [entries]
+    () =>
+      entries
+        .filter((entry) => (entry.displayLocale ?? locale) !== 'en')
+        .map(({ id, coordinates, displayLocale }) => ({
+          id,
+          coordinates,
+          locale: displayLocale ?? locale,
+        })),
+    [entries, locale]
   );
   const lookupKey = useMemo(
     () =>
       lookupEntries
         .map(
-          ({ id, coordinates }) =>
-            `${id}:${coordinates[0].toFixed(4)},${coordinates[1].toFixed(4)}`
+          ({ id, coordinates, locale: entryLocale }) =>
+            `${id}:${entryLocale}:${coordinates[0].toFixed(4)},${coordinates[1].toFixed(4)}`
         )
         .join('|'),
     [lookupEntries]
@@ -33,7 +40,7 @@ export function useLocalizedLocationLabels(
   useEffect(() => {
     let cancelled = false;
 
-    if (locale === 'en' || lookupEntries.length === 0) {
+    if (lookupEntries.length === 0) {
       return () => {
         cancelled = true;
       };
@@ -41,11 +48,11 @@ export function useLocalizedLocationLabels(
 
     void (async () => {
       const resolvedLabels = await Promise.all(
-        lookupEntries.map(async ({ id, coordinates }) => {
+        lookupEntries.map(async ({ id, coordinates, locale: entryLocale }) => {
           const localizedLabel = await getLocalizedPlaceName(
             coordinates[0],
             coordinates[1],
-            locale
+            entryLocale
           );
 
           return localizedLabel ? ([id, localizedLabel] as const) : null;
@@ -69,10 +76,10 @@ export function useLocalizedLocationLabels(
     return () => {
       cancelled = true;
     };
-  }, [locale, lookupEntries, lookupKey]);
+  }, [lookupEntries, lookupKey]);
 
   return useMemo(() => {
-    if (locale === 'en' || lookupEntries.length === 0) {
+    if (lookupEntries.length === 0) {
       return {};
     }
 
@@ -86,5 +93,5 @@ export function useLocalizedLocationLabels(
     }
 
     return activeLabels;
-  }, [locale, localizedLabels, lookupEntries]);
+  }, [localizedLabels, lookupEntries]);
 }

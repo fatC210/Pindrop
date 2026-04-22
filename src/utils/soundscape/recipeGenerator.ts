@@ -14,6 +14,7 @@
  */
 
 import type { LocationContext } from '@/types/locationContext';
+import type { AppLocale } from '@/i18n/types';
 import type {
   SoundscapeNarrativeAnchors,
   SoundscapeRecipe,
@@ -34,6 +35,8 @@ import {
   SILENT_DIALOGUE,
   SILENT_ATMOSPHERE,
 } from './layerBuilder';
+
+export const CURRENT_PROMPT_VERSION = 2;
 
 /**
  * 将小时数格式化为 "HH:MM" 字符串
@@ -110,6 +113,7 @@ function clampRecipeValues(recipe: SoundscapeRecipe): SoundscapeRecipe {
  */
 export interface RecipeGenerationOptions {
   narrativeAnchors?: SoundscapeNarrativeAnchors | null;
+  interfaceLocale?: AppLocale;
 }
 
 export function generateRecipe(
@@ -135,6 +139,7 @@ export function generateRecipe(
   // 步骤 6: 计算时间插值参数
   const timeInterpolation = interpolate(context.currentLocalHour);
   const narrativeAnchors = options.narrativeAnchors ?? undefined;
+  const interfaceLocale = options.interfaceLocale;
 
   // 步骤 7: 构建 5 层声音参数，每层独立 try-catch
 
@@ -203,6 +208,8 @@ export function generateRecipe(
     },
     timeInterpolation,
     narrativeAnchors,
+    promptVersion: CURRENT_PROMPT_VERSION,
+    interfaceLocale,
   };
 
   // 最终安全网：clamp 所有 volume 和 pan 值
