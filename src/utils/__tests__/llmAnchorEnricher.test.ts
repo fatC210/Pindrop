@@ -639,6 +639,47 @@ describe('llmAnchorEnricher', () => {
     });
   });
 
+  it('drops freeform prompt echoes that only repeat display instructions', () => {
+    expect(
+      __private__.normalizeFreeformAnchors(
+        'Only the final body text / 3-4 concrete audible details / sound anchors',
+        'en',
+        SAMPLE_CONTEXT
+      )
+    ).toBeNull();
+  });
+
+  it('drops truncated prompt echoes that only keep sound-anchor formatting instructions', () => {
+    expect(
+      __private__.normalizeFreeformAnchors(
+        'sound anchors / as short clauses / sentences',
+        'en',
+        SAMPLE_CONTEXT
+      )
+    ).toBeNull();
+  });
+
+  it('extracts audible cue text instead of keeping a leading palette instruction', () => {
+    expect(
+      __private__.normalizeFreeformAnchors(
+        'Prefer a compact sound palette made of specific hearable elements such as quiet block air with leaves, distant ventilation, and room between sounds.',
+        'en',
+        SAMPLE_CONTEXT
+      )
+    ).toMatchObject({
+      source: 'llm',
+      summary: {
+        en: 'quiet block air with leaves, distant ventilation, and room between sounds.',
+        'zh-CN': '',
+      },
+      cues: [
+        {
+          prompt: 'quiet block air with leaves, distant ventilation, and room between sounds',
+        },
+      ],
+    });
+  });
+
   it('keeps the full narrative body instead of truncating it to three sentences', () => {
     expect(
       __private__.normalizeFreeformAnchors(

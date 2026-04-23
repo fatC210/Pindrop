@@ -9,7 +9,9 @@ vi.mock('@/utils/apiHeaders', () => ({
 }));
 
 import {
+  clampMusicRenderDurationSeconds,
   DEFAULT_RENDER_DURATION_SECONDS,
+  MAX_MUSIC_RENDER_DURATION_SECONDS,
   MAX_SOUND_EFFECT_PROMPT_LENGTH,
   generateAmbientPreviewAudio,
   generateSoundscapeAudio,
@@ -161,6 +163,10 @@ describe('elevenLabsClient', () => {
       music_length_ms: DEFAULT_RENDER_DURATION_SECONDS * 1000,
       model_id: 'music_v1',
     });
+  });
+
+  test('caps music render duration at 30 seconds', () => {
+    expect(clampMusicRenderDurationSeconds(45)).toBe(MAX_MUSIC_RENDER_DURATION_SECONDS);
   });
 
   test('never sends text-to-speech requests even when dialogue layers contain text', async () => {

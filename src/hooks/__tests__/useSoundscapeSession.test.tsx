@@ -839,6 +839,134 @@ describe('useSoundscapeSession deletion flow', () => {
     expect(result.current.locationEntries[0]?.sceneDescription).not.toBe('soft accordion');
   });
 
+  test('filters prompt-echo cue labels and falls back to usable sound cues for cached entries', async () => {
+    mockGetCachedMarkers.mockResolvedValue([
+      {
+        ...createCachedSoundscape(),
+        recipe: {
+          ...createCachedSoundscape().recipe,
+          narrativeAnchors: {
+            source: 'llm',
+            confidence: 0.91,
+            summary: {
+              en: 'Only the final body text / 3-4 concrete audible details / sound anchors',
+              'zh-CN': '',
+            },
+            cues: [
+              {
+                prompt: 'Only the final body text / 3-4 concrete audible details / sound anchors',
+                label: {
+                  en: 'Only the final body text / 3-4 concrete audible details / sound anchors',
+                  'zh-CN': '',
+                },
+              },
+            ],
+          },
+        },
+      },
+    ]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toBeDefined();
+    expect(result.current.locationEntries[0]?.sceneDescription).not.toMatch(
+      /only the final body text|concrete audible details|sound anchors/i
+    );
+  });
+
+  test('filters truncated prompt-echo fragments like short-clause formatting instructions', async () => {
+    mockGetCachedMarkers.mockResolvedValue([
+      {
+        ...createCachedSoundscape(),
+        recipe: {
+          ...createCachedSoundscape().recipe,
+          narrativeAnchors: {
+            source: 'llm',
+            confidence: 0.91,
+            summary: {
+              en: 'sound anchors / as short clauses / sentences',
+              'zh-CN': '',
+            },
+            cues: [
+              {
+                prompt: 'sound anchors / as short clauses / sentences',
+                label: {
+                  en: 'sound anchors / as short clauses / sentences',
+                  'zh-CN': '',
+                },
+              },
+            ],
+          },
+        },
+      },
+    ]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toBeDefined();
+    expect(result.current.locationEntries[0]?.sceneDescription).not.toMatch(
+      /sound anchors|short clauses|sentences/i
+    );
+  });
+
+  test('drops generic LLM keyword fragments and keeps only audible cue labels', async () => {
+    mockGetCachedMarkers.mockResolvedValue([
+      {
+        ...createCachedSoundscape(),
+        recipe: {
+          ...createCachedSoundscape().recipe,
+          narrativeAnchors: {
+            source: 'llm',
+            confidence: 0.91,
+            summary: {
+              en: '',
+              'zh-CN': '',
+            },
+            cues: [
+              {
+                prompt:
+                  'Prefer a compact sound palette made of specific hearable elements such as quiet block air with leaves, distant ventilation, and room between sounds',
+                label: {
+                  en: 'Compact sound palette',
+                  'zh-CN': '',
+                },
+              },
+              {
+                prompt: 'quiet block air with leaves, distant ventilation, and room between sounds',
+                label: {
+                  en: 'specific hearable elements',
+                  'zh-CN': '',
+                },
+              },
+            ],
+          },
+        },
+      },
+    ]);
+
+    const { result } = renderHook(() => useSoundscapeSession());
+
+    await waitFor(() => {
+      expect(result.current.locationEntries).toHaveLength(1);
+    });
+
+    expect(result.current.locationEntries[0]?.sceneDescription).toBeDefined();
+    expect(result.current.locationEntries[0]?.sceneDescription).not.toMatch(
+      /compact sound palette|specific hearable elements/i
+    );
+    expect(result.current.locationEntries[0]?.sceneDescription).toMatch(
+      /quiet block air|leaves|ventilation/i
+    );
+  });
+
   test('strips cached dialogue blobs before playback so old spoken layers do not play', async () => {
     const cachedEntry = {
       ...createCachedSoundscape(),

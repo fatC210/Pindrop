@@ -92,14 +92,21 @@ export function MarkerManager({
       leafletMarker.addTo(map);
       renderedMarkers.set(marker.id, leafletMarker);
     }
+  }, [map, markers, onMarkerClick]);
 
+  useEffect(() => {
     return (): void => {
+      if (!map) {
+        return;
+      }
+
+      const renderedMarkers = markersRef.current;
       for (const marker of renderedMarkers.values()) {
         map.removeLayer(marker);
       }
       renderedMarkers.clear();
     };
-  }, [map, markers, onMarkerClick]);
+  }, [map]);
 
   return null;
 }

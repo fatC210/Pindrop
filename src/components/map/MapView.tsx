@@ -82,6 +82,10 @@ export function MapView({
     onMarkerSelectRef.current = onMarkerSelect;
   }, [onMarkerSelect]);
 
+  const handleMarkerClick = useCallback((cacheKey: string): void => {
+    onMarkerSelectRef.current?.(cacheKey);
+  }, []);
+
   const cancelScheduledResize = useCallback((): void => {
     if (resizeFrameRef.current !== null) {
       window.cancelAnimationFrame(resizeFrameRef.current);
@@ -340,7 +344,7 @@ export function MapView({
       <MarkerManager
         map={map}
         markers={markers}
-        onMarkerClick={(cacheKey) => onMarkerSelectRef.current?.(cacheKey)}
+        onMarkerClick={handleMarkerClick}
       />
     </div>
   );

@@ -188,6 +188,8 @@ export default function Home(): React.JSX.Element {
 
   const handleCoordinateSelect = useCallback(
     (lat: number, lng: number): void => {
+      setMapFocusedLocationId(null);
+      setFocusedCoordinates([lat, lng]);
       void session.handleCoordinateSelect(lat, lng);
     },
     [session]

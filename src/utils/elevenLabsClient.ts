@@ -9,6 +9,7 @@ import { getApiKeyHeader } from './apiHeaders';
 
 const ELEVENLABS_PROXY_BASE_URL = '/api/elevenlabs';
 export const DEFAULT_RENDER_DURATION_SECONDS = 22;
+export const MAX_MUSIC_RENDER_DURATION_SECONDS = 30;
 export const MAX_SOUND_EFFECT_PROMPT_LENGTH = 450;
 const PREVIEW_DURATION_SECONDS = 4;
 const ELEVENLABS_PROXY_API_KEY_HEADER = 'x-elevenlabs-api-key';
@@ -181,6 +182,10 @@ function normalizeSoundEffectPrompt(prompt: string): string {
   return truncatedPrompt.trimEnd();
 }
 
+export function clampMusicRenderDurationSeconds(durationSeconds: number): number {
+  return Math.max(3, Math.min(MAX_MUSIC_RENDER_DURATION_SECONDS, durationSeconds));
+}
+
 async function generateSoundEffectBlob(
   layer: AmbientLayer | SignatureLayer,
   durationSeconds: number
@@ -202,9 +207,10 @@ async function generateAtmosphereBlob(
   layer: AtmosphereLayer,
   durationSeconds: number
 ): Promise<Blob> {
+  const resolvedDurationSeconds = clampMusicRenderDurationSeconds(durationSeconds);
   const payload = {
     prompt: layer.prompt.trim(),
-    music_length_ms: Math.max(3000, Math.round(durationSeconds * 1000)),
+    music_length_ms: Math.round(resolvedDurationSeconds * 1000),
     model_id: 'music_v1',
   };
 

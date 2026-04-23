@@ -90,6 +90,7 @@ const DEBUG_TAIL_PATTERNS = [
 const PROMPT_TAIL_PATTERNS = [
   /\bgenerate (?:one|a) short place-specific soundscape description\b/i,
   /\bgenerate one place-specific soundscape description paragraph\b/i,
+  /\bonly (?:the )?final body text\b/i,
   /\breturn only the final body text\b/i,
   /\breturn only the description text\b/i,
   /\bone short natural-language paragraph\b/i,
@@ -98,6 +99,39 @@ const PROMPT_TAIL_PATTERNS = [
   /\bno markdown\b/i,
   /\b\d+\s*-\s*\d+\s*words\b/i,
   /\bzh-cn\b/i,
+];
+
+const PROMPT_ECHO_STRONG_PATTERNS = [
+  /\bonly (?:the )?final body text\b/i,
+  /\bfinal short display paragraph\b/i,
+  /\breturn only the(?: final)? (?:body|description) text\b/i,
+  /\bno json\b/i,
+  /\bno markdown\b/i,
+  /\bcode fences?\b/i,
+  /\btarget roughly\b/i,
+  /\bone or two sentences\b/i,
+  /\bwrite in (?:simplified chinese|english)\b/i,
+];
+
+const PROMPT_ECHO_WEAK_PATTERNS = [
+  /\bconcrete audible details\b/i,
+  /\baudible details\b/i,
+  /\bsound anchors?\b/i,
+  /\bshort clauses?\b/i,
+  /\bshort sentences?\b/i,
+  /\bas short clauses?\b/i,
+  /\bas short sentences?\b/i,
+  /\bshort display paragraph\b/i,
+  /\bcompact ui card\b/i,
+  /\bshort natural-language paragraph\b/i,
+  /\bclicked point\b/i,
+  /\blocal scene signals?\b/i,
+];
+
+const PROMPT_LEAD_STRIP_PATTERNS = [
+  /^(?:prefer|choose|pick)\s+(?:a\s+)?compact sound palette made of specific hearable elements(?:\s+(?:such as|like))?\s+/i,
+  /^(?:use|choose|pick)\s+\d+\s*(?:to|-)\s*\d+\s+(?:concrete\s+)?audible details(?:\s+(?:such as|like))?\s+/i,
+  /^(?:use|choose|pick)\s+\d+\s*(?:to|-)\s*\d+\s+sound anchors?(?:\s+(?:such as|like))?\s+/i,
 ];
 
 const AUDIBLE_FRAGMENT_PATTERNS = [
@@ -436,16 +470,46 @@ function stripLeadCueConnector(content: string): string {
     .trim();
 }
 
+function isPromptEchoContent(content: string): boolean {
+  const normalized = content.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (
+    NON_NARRATIVE_LINE_PATTERNS.some((pattern) => pattern.test(normalized)) ||
+    PROMPT_ECHO_STRONG_PATTERNS.some((pattern) => pattern.test(normalized))
+  ) {
+    return true;
+  }
+
+  const weakMatchCount = PROMPT_ECHO_WEAK_PATTERNS.filter((pattern) =>
+    pattern.test(normalized)
+  ).length;
+
+  return weakMatchCount >= 2;
+}
+
+function stripPromptLead(content: string): string {
+  let stripped = content.trim();
+
+  for (const pattern of PROMPT_LEAD_STRIP_PATTERNS) {
+    stripped = stripped.replace(pattern, '').trim();
+  }
+
+  return stripped;
+}
+
 function splitNarrativeFragments(content: string): string[] {
   return content
-    .split(/(?<=[.!?;銆傦紒锛燂紱])(?:\s+|$)/)
-    .map((part) => part.trim())
+    .split(/(?<=[.!?;。！？；])(?:\s+|$)/)
+    .map((part) => stripPromptLead(part.trim()))
     .filter((part) => part.length > 0);
 }
 
 function splitCueCandidates(content: string): string[] {
   const coarseFragments = content
-    .split(/[.!?;銆傦紒锛燂紱]+/)
+    .split(/[.!?;。！？；]+/)
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
 
@@ -520,10 +584,10 @@ function condenseNarrativeForDisplay(
   locale: AppLocale,
   context?: LocationContext
 ): string | null {
-  const normalizedCandidate = collapseInlineEnumerations(
-    trimPromptTail(trimDebugTail(stripLeadScaffolding(content)))
+  const normalizedCandidate = stripPromptLead(
+    collapseInlineEnumerations(trimPromptTail(trimDebugTail(stripLeadScaffolding(content))))
   );
-  if (!normalizedCandidate) {
+  if (!normalizedCandidate || isPromptEchoContent(normalizedCandidate)) {
     return null;
   }
 
@@ -585,8 +649,10 @@ function extractNarrativeSummary(
   context?: LocationContext,
   options: ExtractNarrativeSummaryOptions = {}
 ): string | null {
-  const cleaned = trimPromptTail(trimDebugTail(stripLeadScaffolding(content)));
-  if (!cleaned) {
+  const cleaned = stripPromptLead(
+    trimPromptTail(trimDebugTail(stripLeadScaffolding(content)))
+  );
+  if (!cleaned || isPromptEchoContent(cleaned)) {
     return null;
   }
 
@@ -808,16 +874,19 @@ function normalizeCue(payload: RawCuePayload | undefined): NarrativeAnchorCue | 
     payload.label_en?.trim() ??
     '';
 
-  const normalizedPrompt = normalizeCuePrompt(prompt);
+  const normalizedPrompt = normalizeCuePrompt(stripPromptLead(prompt));
 
-  if (!normalizedPrompt) {
+  if (!normalizedPrompt || isPromptEchoContent(normalizedPrompt)) {
     return null;
   }
 
   const fallbackLabel =
     normalizedPrompt.replace(/\s+/g, ' ').trim().slice(0, 48).trim() ||
     createCueLabel(normalizedPrompt);
-  const resolvedLabelEn = labelEn || fallbackLabel;
+  const resolvedLabelEn =
+    labelEn && !isPromptEchoContent(labelEn) ? labelEn : fallbackLabel;
+  const resolvedLabelZhCn =
+    labelZhCn && !isPromptEchoContent(labelZhCn) ? labelZhCn : resolvedLabelEn;
 
   if (!resolvedLabelEn) {
     return null;
@@ -827,7 +896,7 @@ function normalizeCue(payload: RawCuePayload | undefined): NarrativeAnchorCue | 
     prompt: normalizedPrompt,
     label: {
       en: resolvedLabelEn,
-      'zh-CN': labelZhCn || resolvedLabelEn,
+      'zh-CN': resolvedLabelZhCn || resolvedLabelEn,
     },
   };
 }
@@ -910,8 +979,10 @@ function normalizeFreeformAnchors(
     return null;
   }
 
-  const resolvedNarrativeBody = extractFreeformNarrativeBody(trimmedContent, locale, context);
-  if (!resolvedNarrativeBody) {
+  const resolvedNarrativeBody = stripPromptLead(
+    extractFreeformNarrativeBody(trimmedContent, locale, context) ?? ''
+  );
+  if (!resolvedNarrativeBody || isPromptEchoContent(resolvedNarrativeBody)) {
     return null;
   }
 

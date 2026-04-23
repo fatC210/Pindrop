@@ -203,10 +203,6 @@ function resolveLocaleDisplayText(text: string, locale: AppLocale): string | und
   return stripNonTargetScriptText(normalized, locale);
 }
 
-function textMatchesLocale(text: string, locale: AppLocale): boolean {
-  return resolveLocaleDisplayText(text, locale) !== undefined;
-}
-
 function isDisplayableSceneDescription(text: string): boolean {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) {
@@ -218,6 +214,78 @@ function isDisplayableSceneDescription(text: string): boolean {
     /^\s*scene\s*\d+\s*:/i,
     /(?:^|\s)\d+\s*[\).:]\s+\S+/,
   ].some((pattern) => pattern.test(normalized));
+}
+
+const DISPLAY_PROMPT_ECHO_STRONG_PATTERNS = [
+  /\bonly (?:the )?final body text\b/i,
+  /\bfinal short display paragraph\b/i,
+  /\breturn only the(?: final)? (?:body|description) text\b/i,
+  /\bno json\b/i,
+  /\bno markdown\b/i,
+  /\bcode fences?\b/i,
+  /\btarget roughly\b/i,
+  /\bone or two sentences\b/i,
+  /\bwrite in (?:simplified chinese|english)\b/i,
+];
+
+const DISPLAY_PROMPT_ECHO_WEAK_PATTERNS = [
+  /\bconcrete audible details\b/i,
+  /\baudible details\b/i,
+  /\bsound anchors?\b/i,
+  /\bshort clauses?\b/i,
+  /\bshort sentences?\b/i,
+  /\bas short clauses?\b/i,
+  /\bas short sentences?\b/i,
+  /\bshort display paragraph\b/i,
+  /\bcompact ui card\b/i,
+  /\bshort natural-language paragraph\b/i,
+  /\bclicked point\b/i,
+  /\blocal scene signals?\b/i,
+];
+
+const DISPLAY_GENERIC_LLM_CUE_PATTERNS = [
+  /\bcompact sound palette\b/i,
+  /\bspecific hearable elements?\b/i,
+  /\baudible details?\b/i,
+  /\bsound anchors?\b/i,
+  /\bshort clauses?\b/i,
+  /\bshort sentences?\b/i,
+  /\bdisplay paragraph\b/i,
+  /\bui card\b/i,
+];
+
+const DISPLAY_AUDIBLE_CUE_PATTERNS = [
+  /\b(?:wind|leaf|leaves|bird|birds|insect|insects|water|river|stream|wave|waves|sea|lake|canal|traffic|footsteps?|steps?|bell|bells|shutter|shutters|engine|engines|chime|chimes|horn|scooter|scooters|bicycle|bicycles|bike|bikes|bus|train|tram|motorcycle|motorcycles|voices?|murmur|whisper|announcement|radio|music|accordion|mahjong|tile|tiles|tea|cup|cups|bowl|bowls|chopsticks|gate|door|dog|dogs|oar|oars|boat|boats|ferry|market|vendor|vendors|stall|stalls|bookstall|bookstalls|paperbacks?|shop|shops|storefront|delivery|cart|carts|crate|crates|tableware|chair|chairs|bench|sprinkler|fountain|elevator|ventilation|canopy|jogger|joggers|children|schoolyard|courtyard|bark|latch|hum|hums|rumble|rumbles|splash|splashes|lapping|creak|creaks|scrape|scrapes|clink|clinking|sizzle|sizzling|thud|thudding|rolling|opening|closing|sweeping|bargaining|fluttering|flapping|passing|arriving|returning|drifting|settling|gliding|chirp|chirps)\b/i,
+];
+
+function isPromptEchoDisplayText(text: string): boolean {
+  const normalized = stripNarrativeLeadScaffolding(text);
+  if (!normalized) {
+    return false;
+  }
+
+  if (DISPLAY_PROMPT_ECHO_STRONG_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return true;
+  }
+
+  const weakMatchCount = DISPLAY_PROMPT_ECHO_WEAK_PATTERNS.filter((pattern) =>
+    pattern.test(normalized)
+  ).length;
+
+  return weakMatchCount >= 2;
+}
+
+function isLikelyAudibleCueDisplayText(text: string): boolean {
+  const normalized = stripNarrativeLeadScaffolding(text);
+  if (!normalized || isPromptEchoDisplayText(normalized)) {
+    return false;
+  }
+
+  if (DISPLAY_GENERIC_LLM_CUE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return false;
+  }
+
+  return DISPLAY_AUDIBLE_CUE_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 function getCueLabelText(
@@ -245,6 +313,10 @@ function getCueLabelSegments(
   const segments: string[] = [];
 
   for (const candidate of rawCandidates) {
+    if (isPromptEchoDisplayText(candidate)) {
+      continue;
+    }
+
     const localeSegments = extractLocaleSpecificSegments(candidate, locale);
     if (localeSegments.length > 0) {
       for (const segment of localeSegments) {
@@ -370,12 +442,27 @@ function buildCueListDescription(
   context?: LocationContext | null
 ): string | undefined {
   const cues = narrativeAnchors?.cues ?? [];
+  const requireAudibleCueValidation =
+    narrativeAnchors?.source === 'llm' && locale === 'en';
   const fallbackCues =
     context ? (buildRuleBasedNarrativeAnchors(context)?.cues ?? []) : [];
   const labels: string[] = [];
-  const pushLabel = (candidate: string): void => {
+  let droppedInvalidLlmCue = false;
+  const pushLabel = (candidate: string, requireAudibleValidation = false): void => {
     const normalized = candidate.replace(/\s+/g, ' ').trim();
-    if (!normalized || isLocationLikeLabel(normalized, context)) {
+    if (
+      !normalized ||
+      isLocationLikeLabel(normalized, context) ||
+      isPromptEchoDisplayText(normalized)
+    ) {
+      if (requireAudibleValidation) {
+        droppedInvalidLlmCue = true;
+      }
+      return;
+    }
+
+    if (requireAudibleValidation && !isLikelyAudibleCueDisplayText(normalized)) {
+      droppedInvalidLlmCue = true;
       return;
     }
 
@@ -388,7 +475,7 @@ function buildCueListDescription(
 
   for (const cue of cues) {
     for (const segment of getCueLabelSegments(cue, locale)) {
-      pushLabel(segment);
+      pushLabel(segment, requireAudibleCueValidation);
     }
   }
 
@@ -396,7 +483,7 @@ function buildCueListDescription(
     return labels.slice(0, 3).join(' / ');
   }
 
-  if (labels.length === 0 || labels.length === 1) {
+  if (labels.length === 0 && !droppedInvalidLlmCue) {
     return undefined;
   }
 
@@ -412,7 +499,7 @@ function buildCueListDescription(
     }
   }
 
-  return labels.slice(0, 3).join(' / ');
+  return labels.length > 0 ? labels.slice(0, 3).join(' / ') : undefined;
 }
 
 function getDisplayableNarrativeSummary(
@@ -427,10 +514,30 @@ function getDisplayableNarrativeSummary(
       ? resolveLocaleDisplayText(sanitized, locale)
       : undefined;
 
-    return localizedSanitized ?? candidate;
+    if (localizedSanitized && !isPromptEchoDisplayText(localizedSanitized)) {
+      return localizedSanitized;
+    }
+
+    if (!isPromptEchoDisplayText(candidate)) {
+      return candidate;
+    }
   }
 
   return undefined;
+}
+
+function hasPromptEchoNarrative(
+  narrativeAnchors: SoundscapeRecipe['narrativeAnchors'] | null | undefined,
+  locale: AppLocale
+): boolean {
+  const summaryCandidate = resolveLocaleDisplayText(narrativeAnchors?.summary?.[locale] ?? '', locale);
+  if (summaryCandidate && isPromptEchoDisplayText(summaryCandidate)) {
+    return true;
+  }
+
+  return (narrativeAnchors?.cues ?? []).some((cue) =>
+    getCueLabelSegments(cue, locale).some((segment) => isPromptEchoDisplayText(segment))
+  );
 }
 
 function getFallbackNotice(
@@ -1271,8 +1378,29 @@ export function useSoundscapeSession(): UseSoundscapeSessionResult {
             )
           : undefined);
 
+      if (sceneDescription) {
+        return {
+          sceneDescription,
+        };
+      }
+
+      const shouldFallbackToRules =
+        Boolean(llmNarrativeAnchors) &&
+        hasPromptEchoNarrative(llmNarrativeAnchors, displayLocale);
+
+      if (shouldFallbackToRules) {
+        return {
+          sceneDescription:
+            buildCueListDescription(
+              buildRuleBasedNarrativeAnchors(locationContext),
+              displayLocale,
+              locationContext
+            ) ?? undefined,
+        };
+      }
+
       return {
-        sceneDescription,
+        sceneDescription: undefined,
       };
     },
     []

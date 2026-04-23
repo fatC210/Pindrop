@@ -56,10 +56,12 @@ vi.mock('next/dynamic', () => ({
     function MockMapView({
       markers = [],
       focusedCoordinates = null,
+      onCoordinateSelect,
       onMarkerSelect,
     }: {
       markers?: Array<{ id: string; cacheKey?: string | null }>;
       focusedCoordinates?: [number, number] | null;
+      onCoordinateSelect?: (lat: number, lng: number) => void;
       onMarkerSelect?: (cacheKey: string) => void;
     }): React.JSX.Element {
       return (
@@ -72,6 +74,13 @@ vi.mock('next/dynamic', () => ({
               focusedCoordinates ? focusedCoordinates.join(',') : ''
             }
           />
+          <button
+            type="button"
+            data-testid="map-select-coordinate"
+            onClick={() => onCoordinateSelect?.(39.9042, 116.4074)}
+          >
+            select-coordinate
+          </button>
           {markers
             .filter((marker) => typeof marker.cacheKey === 'string')
             .map((marker) => (
@@ -742,6 +751,26 @@ describe('Home page history visibility', () => {
     const mapView = screen.getByTestId('map-view');
     expect(mapView.getAttribute('data-focused-coordinates')).toBe('48.8566,2.3522');
     expect(handleLocationSelect).not.toHaveBeenCalled();
+  });
+
+  test('focuses the map on the newly selected coordinates after a map click', () => {
+    const handleCoordinateSelect = vi.fn().mockResolvedValue(undefined);
+
+    mockUseSoundscapeSession.mockReturnValue(
+      createSessionResult({
+        hasConfiguredApiKey: true,
+        handleCoordinateSelect,
+      })
+    );
+
+    renderHome();
+
+    fireEvent.click(screen.getByTestId('map-select-coordinate'));
+
+    expect(handleCoordinateSelect).toHaveBeenCalledWith(39.9042, 116.4074);
+    expect(screen.getByTestId('map-view').getAttribute('data-focused-coordinates')).toBe(
+      '39.9042,116.4074'
+    );
   });
 
   test('closes the settings menu when clicking outside', () => {
