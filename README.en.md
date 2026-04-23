@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="./public/pindrop-logo.svg" alt="PinDrop logo" width="112" />
   <h1>PinDrop</h1>
+  <img src="./public/banner.webp" alt="pindrop cover" width="100%" />
   <p><strong>Drop a pin on the map and listen to a place-specific soundscape.</strong></p>
   <p>
     <a href="./README.md">简体中文</a> ·
@@ -83,4 +83,3 @@ npm run test
 ## 📄 Open Source License
 
 This project is released under the `MIT License`. See the root `LICENSE` file for the full text.
-

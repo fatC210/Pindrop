@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="./public/pindrop-logo.svg" alt="PinDrop logo" width="112" />
   <h1>PinDrop</h1>
+  <img src="./public/banner.webp" alt="pindrop cover" width="100%" />
   <p><strong>在地图上落下一枚图钉，生成并聆听这个地点的环境音景。</strong></p>
   <p>
     <a href="./README.md">简体中文</a> ·
@@ -83,4 +83,3 @@ npm run test
 ## 📄 开源许可
 
 本项目采用 `MIT License` 开源，许可证全文见根目录的 `LICENSE` 文件。
-
